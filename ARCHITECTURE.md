@@ -190,7 +190,7 @@ Sessions can leak (crashes, killed panes). Three cleanup mechanisms:
 2. **`_reap_dead`** (hook path, throttled to 30s): cross-references `tmux list-panes` with stored pane IDs, deletes dead ones
 3. **`cmd_cleanup`** (manual): deletes sessions older than 24h + dead pane check
 
-`_reap_dead` checks pane liveness via `tmux list-panes` and process inspection via `_has_agent_child`. On Linux this uses `pgrep -P`; on macOS it falls back to `ps`-based lookup since macOS `pgrep -P` silently fails for processes that rename argv[0] (claude runs as node). Working/blocked sessions on live panes without an agent child process (claude, codex, or gemini) are cleaned up (Ctrl+C case).
+`_reap_dead` checks pane liveness via `tmux list-panes` and process inspection via `_has_agent_child`. On Linux this uses `pgrep -P`; on macOS it falls back to `ps`-based lookup since macOS `pgrep -P` silently fails for processes that rename argv[0] (claude runs as node). Working/blocked sessions on live panes without an agent child process (claude, codex, gemini, or pi) are cleaned up (Ctrl+C case).
 
 ## SQLite as IPC
 
@@ -227,6 +227,85 @@ Multiple concurrent hook processes. WAL mode handles this:
 **Why `TaskCompleted`?** Swarm/team workers complete individual tasks without ending their session. Without this hook, the completed count (`+`) only reflects session endings (Stop). `TaskCompleted` increments a `task_count` column per session. The render formula uses `task_count` when > 0, falling back to 1 for stopped sessions with no tasks. This avoids double-counting: a session with 3 task completions shows `3+`, not `4+`.
 
 **Why `permission_prompt|elicitation_dialog` matcher on Notification?** The `Notification` hook fires for multiple types: `permission_prompt`, `elicitation_dialog`, `idle_prompt`, `auth_success`. Both `permission_prompt` and `elicitation_dialog` mean Claude is waiting for user input. Gemini CLI uses `ToolPermission` for the same purpose. Without the filter, an `idle_prompt` notification would incorrectly show the session as blocked.
+
+## Pi Integration
+
+[Pi](https://github.com/earendil-works/pi) is a Node.js-based TUI coding agent. Unlike Claude Code and Gemini CLI, Pi has no native CLI hook system — instead it has a TypeScript extension API with lifecycle events.
+
+The integration uses **pi-hooks** (`npm:@hsingjui/pi-hooks`), a third-party Pi package that adapts Claude Code's hook configuration format to Pi's extension event system. Hooks are configured declaratively in Pi's settings JSON and invoke external commands with Claude Code-compatible JSON on stdin.
+
+### Event Mapping
+
+| pi-hooks Event      | Pi Extension Event         | Tracker Usage            |
+|---------------------|---------------------------|--------------------------|
+| `SessionStart`      | `session_start`           | Create session as `idle` |
+| `UserPromptSubmit`  | `input` (after commands)  | Status → `working`       |
+| `PostToolUse`       | `tool_result` (success)   | Status → `working`       |
+| `PostToolUseFailure`| `tool_result` (failure)   | Status → `working`       |
+| `Stop`              | `agent_end`               | Status → `completed`     |
+| `SessionEnd`        | `session_shutdown`        | Delete session from DB   |
+
+### Missing Events (vs Claude Code)
+
+| Event               | Status    | Impact                             |
+|---------------------|-----------|-------------------------------------|
+| `Notification`      | ❌ N/A    | No blocked state for Pi sessions   |
+| `PermissionRequest` | ❌ N/A    | No blocked state for Pi sessions   |
+| `TaskCompleted`     | ❌ N/A    | Tasks not counted individually     |
+
+Pi does not have permission dialogs like Claude Code, so **no `blocked` state** is possible. Pi sessions only cycle through `idle → working → completed`.
+
+### Session ID Format
+
+Pi session IDs are file paths (e.g., `/Users/user/.pi/sessions/session-abc.jsonl`), not UUIDs like Claude Code. The tracker detects Pi sessions by checking for the `/.pi/sessions/` pattern in the `session_id` field. When detected, `agent_client` is set to `pi`.
+
+### Installation
+
+1. Install pi-hooks:
+   ```bash
+   pi install npm:@hsingjui/pi-hooks
+   ```
+2. Run the tracker's hook installer:
+   ```bash
+   ~/.tmux/plugins/tmux-claude-agent-tracker/install.sh --hooks-only
+   ```
+3. Restart Pi.
+
+### Event Flow
+
+```
+pi starts
+  │
+  ├─► pi-hooks: SessionStart
+  │    └─► tracker → INSERT session (status=idle, agent_client=pi)
+  │
+user sends prompt
+  │
+  ├─► pi-hooks: UserPromptSubmit
+  │    └─► tracker → UPDATE status=working
+  │
+  ├─► pi-hooks: PostToolUse (for each tool)
+  │    └─► tracker → UPDATE status=working (no-op if already working)
+  │
+  ├─► pi-hooks: PostToolUseFailure (if tool fails)
+  │    └─► tracker → UPDATE status=working
+  │
+  └─► pi-hooks: Stop
+       └─► tracker → UPDATE status=completed
+
+pi exits
+  │
+  └─► pi-hooks: SessionEnd
+       └─► tracker → DELETE session
+```
+
+### Limitations
+
+1. **No blocked state**: Pi doesn't have permission dialogs. Sessions only show `idle`, `working`, or `completed`.
+2. **No task count**: `TaskCompleted` is not available. Completed sessions always show count 1.
+3. **External dependency**: Requires `pi-hooks` npm package. Users must `pi install npm:@hsingjui/pi-hooks` before the tracker can receive Pi events.
+4. **Session ID format**: Pi session IDs are file paths, which may be very long. Truncation in menu/display may be needed.
+5. **No `SubagentStart`/`SubagentStop`**: Pi may have subagent concepts, but pi-hooks doesn't expose them yet.
 
 ## Configurable Icons
 

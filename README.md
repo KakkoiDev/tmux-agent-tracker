@@ -1,6 +1,6 @@
 # tmux-claude-agent-tracker
 
-Track [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), and Codex agent sessions in your tmux status bar. Hook-driven, no daemon, no polling.
+Track [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Pi coding agent](https://github.com/earendil-works/pi), and Codex agent sessions in your tmux status bar. Hook-driven, no daemon, no polling.
 
 ## Status Bar
 
@@ -34,7 +34,7 @@ Quit      q
 
 ## How It Works
 
-- Claude Code and Gemini CLI hooks fire on session events (start, stop, tool use, permission, failure)
+- Claude Code, Gemini CLI, and Pi hooks fire on session events (start, stop, tool use, permission, failure)
 - Codex `notify` events are mapped into tracker state transitions
 - Each hook writes to a local SQLite database and pushes to a tmux option (~35ms)
 - `refresh-client -S` triggers instant display via `#{@claude-tracker-status}`
@@ -89,6 +89,7 @@ The install script:
 4. Configures Claude Code hooks in `~/.claude/settings.json` (requires `jq`)
 5. Configures Gemini CLI hooks in `~/.gemini/settings.json` (if `~/.gemini` exists)
 6. Configures Codex notify hook in `~/.codex/config.toml`
+7. Configures Pi hooks in `~/.pi/agent/settings.json` (if Pi and pi-hooks are installed)
 7. Copies skill bundles to `~/.claude/skills/` and `~/.codex/skills/`
 
 If `jq` is not installed, the script prints the hook JSON for manual configuration.
@@ -114,7 +115,61 @@ Verify:
 jq '.hooks | keys' ~/.claude/settings.json
 jq '.hooks | keys' ~/.gemini/settings.json  # if using Gemini CLI
 rg -n 'notify\\s*=\\s*\\[.*tmux-claude-agent-tracker.*codex-notify' ~/.codex/config.toml
+jq '.hooks | keys' ~/.pi/agent/settings.json  # if using Pi
 ```
+
+### Pi hooks setup
+
+Pi requires the [pi-hooks](https://npmjs.com/package/@hsingjui/pi-hooks) extension package to bridge Pi's extension events to Claude Code-compatible hook commands.
+
+#### Automatic (recommended)
+
+Run:
+
+```bash
+~/.tmux/plugins/tmux-claude-agent-tracker/install.sh --hooks-only
+```
+
+This configures Pi hooks in `~/.pi/agent/settings.json` (if Pi and pi-hooks are detected).
+
+#### Prerequisites
+
+1. Install pi-hooks:
+   ```bash
+   pi install npm:@hsingjui/pi-hooks
+   ```
+2. Verify it's installed:
+   ```bash
+   ls ~/.pi/agent/npm/node_modules/@hsingjui/pi-hooks
+   ```
+
+#### Manual setup
+
+Add to `~/.pi/agent/settings.json`:
+
+```json
+{
+  "use": {
+    "extension": ["pi-hooks"]
+  },
+  "hooks": {
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionStart" }] }],
+    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook UserPromptSubmit" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUse" }] }],
+    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUseFailure" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Stop" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionEnd" }] }]
+  }
+}
+```
+
+Then restart Pi.
+
+#### Limitations
+
+Pi does not have permission dialogs like Claude Code, so **no `blocked` state** is possible. Pi sessions only cycle through `idle → working → completed`. The `Notification` and `PermissionRequest` hooks are not available.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md#pi-integration) for details.
 
 ### Manual setup
 

@@ -204,14 +204,12 @@ cmd_hook() {
     # - their UPDATEs are no-ops if session doesn't exist yet.
     # SessionStart creates as idle; UserPromptSubmit creates as working.
     case "$event" in
-        SessionStart)
-            local _client="claude"
-            [[ "$_SANDBOX" -eq 1 ]] && _client="deer"
-            _ensure_session "$sid" "$json" "idle" "$_client" ;;
-        UserPromptSubmit)
-            local _client="claude"
-            [[ "$_SANDBOX" -eq 1 ]] && _client="deer"
-            _ensure_session "$sid" "$json" "working" "$_client" ;;
+        SessionStart|UserPromptSubmit)
+            local _client
+            _client=$(_detect_agent_client "$raw_sid")
+            local _init_status="working"
+            [[ "$event" == "SessionStart" ]] && _init_status="idle"
+            _ensure_session "$sid" "$json" "$_init_status" "$_client" ;;
     esac
 
     local __changed=1 __render="" __json="$json" __old_status="" __teammate_sid=""
@@ -294,6 +292,33 @@ cmd_hook() {
             _fire_transition_hook "$__old_status" "$_hook_new_status" "$_hook_sid" "$_hook_project" "$_hook_summary"
         fi
     fi
+}
+
+# Detect agent client from session_id pattern or process tree.
+# pi-hooks sends file paths as session_id (e.g. /Users/user/.pi/sessions/session-abc.jsonl).
+# Claude Code uses UUIDs. Fall back to process inspection for pi child detection.
+_detect_agent_client() {
+    local raw_sid="$1"
+    # pi-hooks session_id always contains /.pi/sessions/
+    if [[ "$raw_sid" == *"/.pi/sessions/"* ]]; then
+        echo "pi"
+        return
+    fi
+    # Sandbox deer detection
+    if [[ "$_SANDBOX" -eq 1 ]]; then
+        echo "deer"
+        return
+    fi
+    # Process-based detection via current pane
+    if [[ -n "${TMUX_PANE:-}" ]]; then
+        local _shell_pid
+        _shell_pid=$(tmux display-message -t "$TMUX_PANE" -p '#{pane_pid}' 2>/dev/null) || true
+        if [[ -n "$_shell_pid" ]]; then
+            _agent_client_type "$_shell_pid"
+            return
+        fi
+    fi
+    echo "claude"
 }
 
 _ensure_session() {

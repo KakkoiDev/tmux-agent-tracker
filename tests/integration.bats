@@ -584,3 +584,97 @@ teardown() {
     [[ "$out" == *"1+"* ]]
     [[ "$out" == *"1*"* ]]
 }
+
+# ── 16. Pi hooks lifecycle ───────────────────────────────────────────
+
+@test "pi: full session lifecycle via pi-hooks events" {
+    local sid="/tmp/.pi/sessions/session-pi-1.jsonl"
+    local json="{\"session_id\":\"$sid\",\"cwd\":\"/tmp/project\"}"
+
+    # SessionStart → idle (pi client detected from session_id path)
+    fire_hook SessionStart "$json"
+    [[ "$(get_status "$sid")" == "idle" ]]
+    [[ "$(sql \"SELECT agent_client FROM sessions WHERE session_id='$sid';\")" == "pi" ]]
+
+    # UserPromptSubmit → working
+    fire_hook UserPromptSubmit "$json"
+    [[ "$(get_status "$sid")" == "working" ]]
+
+    # PostToolUse → working (no-op)
+    fire_hook PostToolUse "$json"
+    [[ "$(get_status "$sid")" == "working" ]]
+
+    # PostToolUseFailure → working (no-op)
+    fire_hook PostToolUseFailure "$json"
+    [[ "$(get_status "$sid")" == "working" ]]
+
+    # Stop → completed
+    fire_hook Stop "$json"
+    [[ "$(get_status "$sid")" == "completed" ]]
+
+    local out
+    out=$(read_cache)
+    [[ "$out" == *"1+"* ]]
+
+    # SessionEnd → deleted
+    fire_hook SessionEnd "$json"
+    [[ "$(count_sessions)" -eq 0 ]]
+}
+
+@test "pi: session_id as file path does not break cache rendering" {
+    local sid="/Users/test/.pi/sessions/session-pi-render.jsonl"
+    local json="{\"session_id\":\"$sid\",\"cwd\":\"/tmp/project\"}"
+
+    fire_hook SessionStart "$json"
+    fire_hook UserPromptSubmit "$json"
+    fire_hook Stop "$json"
+
+    local out
+    out=$(read_cache)
+    [[ -n "$out" ]]
+    [[ "$out" == *"1+"* ]]
+
+    fire_hook SessionEnd "$json"
+}
+
+@test "pi: pi and claude sessions coexist in cache" {
+    local pi_sid="/tmp/.pi/sessions/session-pi-mix.jsonl"
+    local pi_json="{\"session_id\":\"$pi_sid\",\"cwd\":\"/tmp/project\"}"
+    local cc_sid="cc-mix-1"
+    local cc_json="{\"session_id\":\"$cc_sid\",\"cwd\":\"/tmp/project\"}"
+
+    # Pi session
+    fire_hook SessionStart "$pi_json"
+    fire_hook UserPromptSubmit "$pi_json"
+    [[ "$(sql \"SELECT agent_client FROM sessions WHERE session_id='$pi_sid';\")" == "pi" ]]
+
+    # Claude session
+    fire_hook SessionStart "$cc_json"
+    fire_hook UserPromptSubmit "$cc_json"
+    [[ "$(sql \"SELECT agent_client FROM sessions WHERE session_id='$cc_sid';\")" == "claude" ]]
+
+    # Both working: count = 2
+    local out
+    out=$(read_cache)
+    [[ "$out" == *"2*"* ]]
+
+    # Cleanup
+    fire_hook SessionEnd "$pi_json"
+    fire_hook SessionEnd "$cc_json"
+}
+
+@test "pi: Stop → UserPromptSubmit resumes from completed" {
+    local sid="/tmp/.pi/sessions/session-pi-resume.jsonl"
+    local json="{\"session_id\":\"$sid\",\"cwd\":\"/tmp/project\"}"
+
+    fire_hook SessionStart "$json"
+    fire_hook UserPromptSubmit "$json"
+    fire_hook Stop "$json"
+    [[ "$(get_status "$sid")" == "completed" ]]
+
+    # Resume
+    fire_hook UserPromptSubmit "$json"
+    [[ "$(get_status "$sid")" == "working" ]]
+
+    fire_hook SessionEnd "$json"
+}

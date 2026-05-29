@@ -5,11 +5,11 @@ description: Track Claude Code and Codex agent sessions in tmux. Use when instal
 
 # tmux-claude-agent-tracker
 
-Track Claude Code and Codex agent sessions in the tmux status bar. Hook-driven, no daemon, no polling.
+Track Claude Code, Pi, and Codex agent sessions in the tmux status bar. Hook-driven, no daemon, no polling.
 
 ## How It Works
 
-1. Claude Code hooks fire on session events and write JSON to stdin
+1. Claude Code, Pi, and Gemini CLI hooks fire on session events and write JSON to stdin
 2. Codex `notify` fires on agent events and calls `tracker.sh codex-notify`
 3. `tracker.sh` parses hook JSON, updates a SQLite DB, and re-renders the status bar
 4. `#{@claude-tracker-status}` displays the cached status string (instant, no subprocess)
@@ -49,7 +49,56 @@ All commands go through `tmux-claude-agent-tracker` (symlinked to `scripts/track
 | `cleanup` | Remove stale sessions (>24h or dead panes) |
 | `codex-notify <json>` | Handle Codex notify payloads and map to tracker states |
 
+## Pi Hook Configuration (pi-hooks)
+
+Pi uses the [pi-hooks](https://npmjs.com/package/@hsingjui/pi-hooks) extension to bridge Pi's extension events to tracker commands.
+
+### Prerequisites
+
+```bash
+pi install npm:@hsingjui/pi-hooks
+```
+
+### Hook Events
+
+| pi-hooks Event | Pi Extension Event | Tracker Action |
+|----------------|-------------------|----------------|
+| `SessionStart` | `session_start` | Create session as idle |
+| `UserPromptSubmit` | `input` | Set working |
+| `PostToolUse` | `tool_result` (success) | Set working (clears blocked) |
+| `PostToolUseFailure` | `tool_result` (failure) | Set working (clears stuck blocked) |
+| `Stop` | `agent_end` | Set completed |
+| `SessionEnd` | `session_shutdown` | Delete session |
+
+### Limitations
+
+- No `blocked` state: Pi doesn't have permission dialogs
+- No `TaskCompleted`: Tasks not counted individually
+- Requires `pi-hooks` npm package
+
+### Configuration
+
+These hooks are configured in `~/.pi/agent/settings.json`. The `install.sh` script detects Pi and configures them automatically.
+
+### Verify
+
+```json
+{
+  "use": { "extension": ["pi-hooks"] },
+  "hooks": {
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionStart" }] }],
+    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook UserPromptSubmit" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUse" }] }],
+    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUseFailure" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Stop" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionEnd" }] }]
+  }
+}
+```
+
 ## Claude Code Hook Configuration
+
+### Hook Events
 
 These hooks must be in `~/.claude/settings.json`. The `install.sh` script configures them automatically.
 

@@ -11,6 +11,7 @@ echo "  - CLI symlink (~/.local/bin/tmux-claude-agent-tracker)"
 echo "  - tmux.conf plugin line"
 echo "  - Claude Code hooks (settings.json)"
 echo "  - Gemini CLI hooks (~/.gemini/settings.json)"
+echo "  - Pi hooks (~/.pi/agent/settings.json)"
 echo "  - Codex notify hook (~/.codex/config.toml)"
 echo "  - Skill folders (~/.claude/skills and ~/.codex/skills)"
 echo "  - Data directory (~/.tmux-claude-agent-tracker/)"
@@ -102,6 +103,34 @@ if [[ -f "$GEMINI_SETTINGS" ]]; then
         echo ""
         echo "jq not found. Manually remove hooks containing 'tmux-claude-agent-tracker' from:"
         echo "  $GEMINI_SETTINGS"
+        echo ""
+    fi
+fi
+
+# ── Pi hooks ─────────────────────────────────────────────────────────
+
+PI_SETTINGS="$HOME/.pi/agent/settings.json"
+if [[ -f "$PI_SETTINGS" ]]; then
+    if command -v jq >/dev/null 2>&1; then
+        tmp="${PI_SETTINGS}.tmp"
+        # Remove hook entries where command matches tmux-claude-agent-tracker
+        jq '
+            if .hooks then
+                .hooks |= with_entries(
+                    .value |= map(
+                        .hooks |= map(select(.command | test("tmux-claude-agent-tracker") | not))
+                        | select(.hooks | length > 0)
+                    )
+                    | select(.value | length > 0)
+                )
+                | if (.hooks | length) == 0 then del(.hooks) else . end
+            else . end
+        ' "$PI_SETTINGS" > "$tmp" && mv "$tmp" "$PI_SETTINGS"
+        echo "Removed: Pi hooks from $PI_SETTINGS"
+    else
+        echo ""
+        echo "jq not found. Manually remove hooks containing 'tmux-claude-agent-tracker' from:"
+        echo "  $PI_SETTINGS"
         echo ""
     fi
 fi

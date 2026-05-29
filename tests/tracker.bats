@@ -2522,3 +2522,72 @@ SCRIPT
     scan_gone=$(sql "SELECT COUNT(*) FROM sessions WHERE session_id='scan-%43';")
     [[ "$scan_gone" -eq 0 ]]
 }
+
+# ── Pi client detection ────────────────────────────────────────────
+
+@test "_detect_agent_client detects pi from session_id path" {
+    run _detect_agent_client "/Users/user/.pi/sessions/session-abc.jsonl"
+    [[ "$output" == "pi" ]]
+}
+
+@test "_detect_agent_client returns claude for UUID session_id" {
+    run _detect_agent_client "550e8400-e29b-41d4-a716-446655440000"
+    [[ "$output" == "claude" ]]
+}
+
+@test "_detect_agent_client returns deer in sandbox" {
+    _SANDBOX=1
+    run _detect_agent_client "some-id"
+    [[ "$output" == "deer" ]]
+    _SANDBOX=0
+}
+
+@test "_ensure_session stores agent_client=pi for pi-hooks sessions" {
+    local raw_sid="/Users/test/.pi/sessions/session-abc.jsonl"
+    local sid=$(sql_esc "$raw_sid")
+    export TMUX_PANE="%44"
+    tmux() {
+        case "$1" in
+            display-message) echo "test:0.0" ;;
+            *) true ;;
+        esac
+    }
+    _ensure_session "$sid" '{"cwd":"/tmp/test"}' "idle" "pi"
+    local client
+    client=$(sql "SELECT agent_client FROM sessions WHERE session_id='$sid';")
+    [[ "$client" == "pi" ]]
+}
+
+@test "pi session shows in menu with [pi] tag" {
+    local raw_sid="/Users/test/.pi/sessions/session-pi-test.jsonl"
+    local sid=$(sql_esc "$raw_sid")
+    sql "INSERT INTO sessions (session_id, status, cwd, project_name, agent_client, tmux_pane)
+         VALUES ('$sid', 'working', '/tmp/test', 'test', 'pi', '%45');"
+    local client
+    client=$(sql "SELECT agent_client FROM sessions WHERE session_id='$sid';")
+    [[ "$client" == "pi" ]]
+}
+
+@test "pi session counted in render alongside claude sessions" {
+    sql "INSERT INTO sessions (session_id, status, cwd, project_name, agent_client, tmux_pane)
+         VALUES ('pi-1', 'working', '/tmp/test', 'test', 'pi', '%46');"
+    insert_session "claude-1" "working" "%47"
+    _render_cache
+    local out
+    out=$(cat "$CACHE")
+    # Both pi and claude sessions counted: 2 working
+    [[ "$out" == *"2*"* ]]
+}
+
+@test "_detect_agent_client detects pi via process tree when TMUX_PANE set" {
+    export TMUX_PANE="%48"
+    tmux() {
+        case "$1" in
+            display-message) echo "12345" ;;
+            *) true ;;
+        esac
+    }
+    _agent_client_type() { echo "pi"; }
+    run _detect_agent_client "some-uuid"
+    [[ "$output" == "pi" ]]
+}

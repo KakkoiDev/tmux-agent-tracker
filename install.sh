@@ -297,6 +297,137 @@ install_gemini_hooks() {
 
 install_gemini_hooks
 
+# ── configure Pi hooks (pi-hooks extension) ─────────────────────────
+
+PI_SETTINGS="$HOME/.pi/agent/settings.json"
+
+PI_EVENTS=(
+    SessionStart UserPromptSubmit
+    PostToolUse PostToolUseFailure Stop SessionEnd
+)
+
+_print_manual_pi_hooks() {
+    cat <<'MANUAL_PI'
+
+To configure Pi hooks via pi-hooks:
+
+1. Install pi-hooks package:
+   pi install npm:@hsingjui/pi-hooks
+
+2. Add to ~/.pi/agent/settings.json:
+
+{
+  "hooks": {
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionStart" }] }],
+    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook UserPromptSubmit" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUse" }] }],
+    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUseFailure" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Stop" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionEnd" }] }]
+  }
+}
+
+Then restart Pi for hooks to take effect.
+MANUAL_PI
+}
+
+install_pi_hooks() {
+    if ! command -v pi >/dev/null 2>&1; then
+        return
+    fi
+
+    echo ""
+    echo "── Pi hooks ──"
+
+    if ! $HAS_JQ; then
+        echo "pi hooks: jq not found — skipping auto-configuration"
+        _print_manual_pi_hooks
+        return
+    fi
+
+    # Check pi-hooks package is installed
+    local pi_hooks_ok=false
+    if [[ -d "$HOME/.pi/agent/npm/node_modules/@hsingjui/pi-hooks" ]]; then
+        pi_hooks_ok=true
+    fi
+    if ! $pi_hooks_ok; then
+        echo "pi hooks: @hsingjui/pi-hooks package not found"
+        echo "  Install: pi install npm:@hsingjui/pi-hooks"
+        _print_manual_pi_hooks
+        return
+    fi
+
+    if [[ ! -f "$PI_SETTINGS" ]]; then
+        # Create minimal settings with hooks
+        local hooks_json="{use: {extension: ['pi-hooks']}, "
+        hooks_json+='"hooks":{'
+        local first=true
+        for event in "${PI_EVENTS[@]}"; do
+            $first || hooks_json+=","
+            first=false
+            hooks_json+="\"$event\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"tmux-claude-agent-tracker hook $event\"}]}]"
+        done
+        hooks_json+="}}"
+
+        jq -n --argjson hooks "$hooks_json" '{
+            use: {extension: ["pi-hooks"]},
+            hooks: $hooks
+        }' > "$PI_SETTINGS" 2>/dev/null || {
+            echo "pi hooks: failed to create $PI_SETTINGS"
+            _print_manual_pi_hooks
+            return
+        }
+        echo "pi hooks: created $PI_SETTINGS with all tracker hooks"
+        return
+    fi
+
+    # Settings file exists — merge tracker hooks
+    local tmp="${PI_SETTINGS}.tmp"
+    local changed=false
+
+    cp "$PI_SETTINGS" "$tmp"
+
+    # Ensure top-level "hooks" key exists
+    if ! jq -e '.hooks' "$tmp" >/dev/null 2>&1; then
+        jq '. + {hooks: {}}' "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
+    fi
+
+    # Ensure pi-hooks extension is enabled
+    if ! jq -e '.use.extension | index("pi-hooks")' "$tmp" >/dev/null 2>&1; then
+        jq '.use.extension = (.use.extension // []) + ["pi-hooks"]' "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
+        changed=true
+    fi
+
+    for event in "${PI_EVENTS[@]}"; do
+        local cmd="tmux-claude-agent-tracker hook $event"
+
+        # Check if this exact command already exists under this event
+        if jq -e --arg event "$event" --arg cmd "$cmd" '
+            .hooks[$event] // [] | map(.hooks[]? | select(.command == $cmd)) | length > 0
+        ' "$tmp" >/dev/null 2>&1; then
+            continue
+        fi
+
+        # Append tracker hook entry to this event
+        jq --arg event "$event" --arg cmd "$cmd" '
+            .hooks[$event] = (.hooks[$event] // []) + [{
+                matcher: "",
+                hooks: [{type: "command", command: $cmd}]
+            }]
+        ' "$tmp" > "${tmp}.2" && mv "${tmp}.2" "$tmp"
+        changed=true
+    done
+
+    if $changed; then
+        mv "$tmp" "$PI_SETTINGS"
+        echo "pi hooks: added tracker hooks to $PI_SETTINGS"
+        echo "pi hooks: extension pi-hooks enabled in use.extension"
+    else
+        rm -f "$tmp"
+        echo "pi hooks: already configured"
+    fi
+}
+
 # ── configure Codex notify hook ──────────────────────────────────────
 
 _print_manual_codex_notify() {
@@ -387,12 +518,14 @@ install_codex_notify() {
 
 install_codex_notify
 
+install_pi_hooks
+
 # ── done ─────────────────────────────────────────────────────────────
 
 echo ""
 if $HOOKS_ONLY; then
-    echo "Done. Restart Claude Code, Gemini CLI, and Codex for hooks to take effect."
+    echo "Done. Restart Claude Code, Gemini CLI, Codex, and Pi for hooks to take effect."
 else
     echo "Done. Reload tmux: tmux source ~/.tmux.conf"
-    echo "Then restart Claude Code, Gemini CLI, and Codex for hooks to take effect."
+    echo "Then restart Claude Code, Gemini CLI, Codex, and Pi for hooks to take effect."
 fi

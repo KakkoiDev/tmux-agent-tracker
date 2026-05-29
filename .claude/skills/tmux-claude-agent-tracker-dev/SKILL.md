@@ -17,6 +17,7 @@ Pure bash + SQLite tmux plugin. See MEMO.md for full details, ARCHITECTURE.md fo
 | `tests/tracker.bats` | 1363 | 121 unit tests (mocked tmux/git) |
 | `tests/integration.bats` | 433 | 20 integration tests (isolated tmux server) |
 | `tests/helpers.bash` | 129 | Unit test helpers: DB setup, mocks |
+| `pi-hooks-config.json` | 55 | Pi hooks extension configuration template |
 | `tests/integration_helpers.bash` | 148 | Integration helpers: isolated tmux, fire_hook |
 
 ## Debug Workflow
