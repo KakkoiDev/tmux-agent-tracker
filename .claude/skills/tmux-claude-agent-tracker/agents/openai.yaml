@@ -1,4 +1,0 @@
-interface:
-  display_name: "Tmux Agent Tracker"
-  short_description: "Track Claude and Codex agents in tmux."
-  default_prompt: "Use $tmux-claude-agent-tracker to install and troubleshoot tmux tracking for Claude Code and Codex sessions."

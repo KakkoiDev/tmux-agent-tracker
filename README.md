@@ -1,4 +1,4 @@
-# tmux-claude-agent-tracker
+# tmux-agent-tracker
 
 Track [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Pi coding agent](https://github.com/earendil-works/pi), and Codex agent sessions in your tmux status bar. Hook-driven, no daemon, no polling.
 
@@ -37,7 +37,7 @@ Quit      q
 - Claude Code, Gemini CLI, and Pi hooks fire on session events (start, stop, tool use, permission, failure)
 - Codex `notify` events are mapped into tracker state transitions
 - Each hook writes to a local SQLite database and pushes to a tmux option (~35ms)
-- `refresh-client -S` triggers instant display via `#{@claude-tracker-status}`
+- `refresh-client -S` triggers instant display via `#{@agent-tracker-status}`
 - A periodic `#()` refresh keeps the blocked timer current
 - Dead sessions are automatically reaped via tmux pane cross-referencing
 
@@ -78,8 +78,8 @@ AI Agents
 ### Quick Start
 
 ```bash
-git clone https://github.com/KakkoiDev/tmux-claude-agent-tracker.git ~/.tmux/plugins/tmux-claude-agent-tracker
-cd ~/.tmux/plugins/tmux-claude-agent-tracker && ./install.sh
+git clone https://github.com/KakkoiDev/tmux-agent-tracker.git ~/.tmux/plugins/tmux-agent-tracker
+cd ~/.tmux/plugins/tmux-agent-tracker && ./install.sh
 ```
 
 The install script:
@@ -101,7 +101,7 @@ If `jq` is not installed, the script prints the hook JSON for manual configurati
 Run:
 
 ```bash
-~/.tmux/plugins/tmux-claude-agent-tracker/install.sh --hooks-only
+~/.tmux/plugins/tmux-agent-tracker/install.sh --hooks-only
 ```
 
 This configures:
@@ -114,7 +114,7 @@ Verify:
 ```bash
 jq '.hooks | keys' ~/.claude/settings.json
 jq '.hooks | keys' ~/.gemini/settings.json  # if using Gemini CLI
-rg -n 'notify\\s*=\\s*\\[.*tmux-claude-agent-tracker.*codex-notify' ~/.codex/config.toml
+rg -n 'notify\\s*=\\s*\\[.*tmux-agent-tracker.*codex-notify' ~/.codex/config.toml
 jq '.hooks | keys' ~/.pi/agent/settings.json  # if using Pi
 ```
 
@@ -127,7 +127,7 @@ Pi requires the [pi-hooks](https://npmjs.com/package/@hsingjui/pi-hooks) extensi
 Run:
 
 ```bash
-~/.tmux/plugins/tmux-claude-agent-tracker/install.sh --hooks-only
+~/.tmux/plugins/tmux-agent-tracker/install.sh --hooks-only
 ```
 
 This configures Pi hooks in `~/.pi/agent/settings.json` (if Pi and pi-hooks are detected).
@@ -153,12 +153,12 @@ Add to `~/.pi/agent/settings.json`:
     "extension": ["pi-hooks"]
   },
   "hooks": {
-    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionStart" }] }],
-    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook UserPromptSubmit" }] }],
-    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUse" }] }],
-    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUseFailure" }] }],
-    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Stop" }] }],
-    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionEnd" }] }]
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionStart" }] }],
+    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook UserPromptSubmit" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }],
+    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUseFailure" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionEnd" }] }]
   }
 }
 ```
@@ -178,15 +178,15 @@ Claude (`~/.claude/settings.json`):
 ```json
 {
   "hooks": {
-    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionStart" }] }],
-    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionEnd" }] }],
-    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook UserPromptSubmit" }] }],
-    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUse" }] }],
-    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUseFailure" }] }],
-    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Stop" }] }],
-    "Notification": [{ "matcher": "permission_prompt|elicitation_dialog", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Notification" }] }],
-    "PermissionRequest": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PermissionRequest" }] }],
-    "TaskCompleted": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook TaskCompleted" }] }]
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionStart" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionEnd" }] }],
+    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook UserPromptSubmit" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }],
+    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUseFailure" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "Notification": [{ "matcher": "permission_prompt|elicitation_dialog", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Notification" }] }],
+    "PermissionRequest": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PermissionRequest" }] }],
+    "TaskCompleted": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook TaskCompleted" }] }]
   }
 }
 ```
@@ -194,7 +194,7 @@ Claude (`~/.claude/settings.json`):
 Codex (`~/.codex/config.toml`):
 
 ```toml
-notify = ["tmux-claude-agent-tracker", "codex-notify"]
+notify = ["tmux-agent-tracker", "codex-notify"]
 ```
 
 ## Skill Install (Claude + Codex)
@@ -202,8 +202,8 @@ notify = ["tmux-claude-agent-tracker", "codex-notify"]
 Install or refresh bundled skills in both locations:
 
 ```bash
-PLUGIN_DIR="$HOME/.tmux/plugins/tmux-claude-agent-tracker"
-for skill_src in "$PLUGIN_DIR"/.claude/skills/tmux-claude-agent-tracker*; do
+PLUGIN_DIR="$HOME/.tmux/plugins/tmux-agent-tracker"
+for skill_src in "$PLUGIN_DIR"/.claude/skills/tmux-agent-tracker*; do
   skill_name="$(basename "$skill_src")"
   mkdir -p "$HOME/.claude/skills/$skill_name" "${CODEX_HOME:-$HOME/.codex}/skills/$skill_name"
   cp -Rf "$skill_src/." "$HOME/.claude/skills/$skill_name/"
@@ -214,19 +214,19 @@ done
 ### TPM
 
 ```bash
-set -g @plugin 'KakkoiDev/tmux-claude-agent-tracker'
+set -g @plugin 'KakkoiDev/tmux-agent-tracker'
 ```
 
-Then `prefix + I` to install. TPM runs `claude-tracker.tmux` which automatically provisions CLI symlinks and syncs skill bundles into Claude and Codex skill folders. You only need to run the hook installer once:
+Then `prefix + I` to install. TPM runs `agent-tracker.tmux` which automatically provisions CLI symlinks and syncs skill bundles into Claude and Codex skill folders. You only need to run the hook installer once:
 
 ```bash
-~/.tmux/plugins/tmux-claude-agent-tracker/install.sh --hooks-only
+~/.tmux/plugins/tmux-agent-tracker/install.sh --hooks-only
 ```
 
 ## Uninstall
 
 ```bash
-cd ~/.tmux/plugins/tmux-claude-agent-tracker && ./uninstall.sh
+cd ~/.tmux/plugins/tmux-agent-tracker && ./uninstall.sh
 ```
 
 Removes all artifacts: CLI symlinks, tmux.conf lines, Claude Code hooks, Gemini CLI hooks, Codex notify hook, Claude/Codex skill folders, data directory, and live tmux state.
@@ -239,28 +239,28 @@ Set in `~/.tmux.conf`:
 
 | Option | Default | Purpose |
 |--------|---------|---------|
-| `@claude-tracker-keybinding` | `a` | Menu key (after prefix) |
-| `@claude-tracker-items-per-page` | `10` | Menu page size |
-| `@claude-tracker-key-next` | `i` | Next page |
-| `@claude-tracker-key-prev` | `o` | Previous page |
-| `@claude-tracker-key-quit` | `q` | Quit menu |
-| `@claude-tracker-show-project` | `0` | `1` to show project name |
-| `@claude-tracker-status-interval` | `60` | Blocked timer refresh (seconds) |
-| `@claude-tracker-completed-delay` | `3` | Seconds to show completed before auto-clear (`0` to disable) |
+| `@agent-tracker-keybinding` | `a` | Menu key (after prefix) |
+| `@agent-tracker-items-per-page` | `10` | Menu page size |
+| `@agent-tracker-key-next` | `i` | Next page |
+| `@agent-tracker-key-prev` | `o` | Previous page |
+| `@agent-tracker-key-quit` | `q` | Quit menu |
+| `@agent-tracker-show-project` | `0` | `1` to show project name |
+| `@agent-tracker-status-interval` | `60` | Blocked timer refresh (seconds) |
+| `@agent-tracker-completed-delay` | `3` | Seconds to show completed before auto-clear (`0` to disable) |
 
 ### Colors
 
 | Option | Default | Purpose |
 |--------|---------|---------|
-| `@claude-tracker-color-working` | `black` | Working count color |
-| `@claude-tracker-color-blocked` | `black` | Blocked count color |
-| `@claude-tracker-color-idle` | `black` | Idle count color |
-| `@claude-tracker-color-completed` | `black` | Completed count color |
+| `@agent-tracker-color-working` | `black` | Working count color |
+| `@agent-tracker-color-blocked` | `black` | Blocked count color |
+| `@agent-tracker-color-idle` | `black` | Idle count color |
+| `@agent-tracker-color-completed` | `black` | Completed count color |
 
 ```bash
-set -g @claude-tracker-color-working 'green'
-set -g @claude-tracker-color-blocked 'red'
-set -g @claude-tracker-color-idle 'yellow'
+set -g @agent-tracker-color-working 'green'
+set -g @agent-tracker-color-blocked 'red'
+set -g @agent-tracker-color-idle 'yellow'
 ```
 
 ### Icons
@@ -269,16 +269,16 @@ Customize the status bar indicators:
 
 | Option | Default | Purpose |
 |--------|---------|---------|
-| `@claude-tracker-icon-idle` | `.` | Idle indicator |
-| `@claude-tracker-icon-working` | `*` | Working indicator |
-| `@claude-tracker-icon-completed` | `+` | Completed indicator |
-| `@claude-tracker-icon-blocked` | `!` | Blocked indicator |
+| `@agent-tracker-icon-idle` | `.` | Idle indicator |
+| `@agent-tracker-icon-working` | `*` | Working indicator |
+| `@agent-tracker-icon-completed` | `+` | Completed indicator |
+| `@agent-tracker-icon-blocked` | `!` | Blocked indicator |
 
 ```bash
-set -g @claude-tracker-icon-idle '💤'
-set -g @claude-tracker-icon-working '🔨'
-set -g @claude-tracker-icon-completed '✅'
-set -g @claude-tracker-icon-blocked '🔴'
+set -g @agent-tracker-icon-idle '💤'
+set -g @agent-tracker-icon-working '🔨'
+set -g @agent-tracker-icon-completed '✅'
+set -g @agent-tracker-icon-blocked '🔴'
 ```
 
 ### State Transition Hooks
@@ -287,23 +287,23 @@ Run shell commands when an agent changes state. Each command receives 5 argument
 
 | Option | Default | Fires on |
 |--------|---------|----------|
-| `@claude-tracker-on-working` | `""` | Any state -> working |
-| `@claude-tracker-on-completed` | `""` | Any state -> completed |
-| `@claude-tracker-on-blocked` | `""` | Any state -> blocked |
-| `@claude-tracker-on-idle` | `""` | Any state -> idle |
-| `@claude-tracker-on-transition` | `""` | Any state change (catch-all) |
+| `@agent-tracker-on-working` | `""` | Any state -> working |
+| `@agent-tracker-on-completed` | `""` | Any state -> completed |
+| `@agent-tracker-on-blocked` | `""` | Any state -> blocked |
+| `@agent-tracker-on-idle` | `""` | Any state -> idle |
+| `@agent-tracker-on-transition` | `""` | Any state change (catch-all) |
 
 ```bash
 # Desktop notification when blocked
-set -g @claude-tracker-on-blocked 'notify-send "Claude blocked" "Agent in $4 needs attention"'
+set -g @agent-tracker-on-blocked 'notify-send "Claude blocked" "Agent in $4 needs attention"'
 
 # Sound alert when completed or blocked
-set -g @claude-tracker-on-completed 'paplay /usr/share/sounds/freedesktop/stereo/complete.oga'
-set -g @claude-tracker-on-blocked 'paplay /usr/share/sounds/freedesktop/stereo/complete.oga'
+set -g @agent-tracker-on-completed 'paplay /usr/share/sounds/freedesktop/stereo/complete.oga'
+set -g @agent-tracker-on-blocked 'paplay /usr/share/sounds/freedesktop/stereo/complete.oga'
 
 # macOS equivalents
-set -g @claude-tracker-on-completed 'afplay /System/Library/Sounds/Glass.aiff'
-set -g @claude-tracker-on-blocked 'afplay /System/Library/Sounds/Glass.aiff'
+set -g @agent-tracker-on-completed 'afplay /System/Library/Sounds/Glass.aiff'
+set -g @agent-tracker-on-blocked 'afplay /System/Library/Sounds/Glass.aiff'
 
 # Phone push notifications via ntfy.sh (free, no account needed)
 # 1. Install ntfy app on phone (App Store / Google Play)
@@ -311,8 +311,8 @@ set -g @claude-tracker-on-blocked 'afplay /System/Library/Sounds/Glass.aiff'
 #      echo "claude-$(openssl rand -hex 4)"
 # 3. Subscribe to that topic in the ntfy app
 # 4. Add hooks (replace MY_TOPIC with your topic name):
-set -g @claude-tracker-on-blocked '/usr/bin/curl -s -d "[$4] Blocked: $5" ntfy.sh/MY_TOPIC'
-set -g @claude-tracker-on-completed '/usr/bin/curl -s -d "[$4] Completed: $5" ntfy.sh/MY_TOPIC'
+set -g @agent-tracker-on-blocked '/usr/bin/curl -s -d "[$4] Blocked: $5" ntfy.sh/MY_TOPIC'
+set -g @agent-tracker-on-completed '/usr/bin/curl -s -d "[$4] Completed: $5" ntfy.sh/MY_TOPIC'
 ```
 
 ### Phone Push Notifications (ntfy.sh)
@@ -334,8 +334,8 @@ echo "claude-$(openssl rand -hex 4)"
 **3. Add hooks to `~/.tmux.conf`** (replace `claude-2bb1234q` with your topic):
 
 ```bash
-set -g @claude-tracker-on-blocked 'curl -s -d "Agent in $4 needs attention" ntfy.sh/claude-2bb1234q'
-set -g @claude-tracker-on-completed 'curl -s -d "Agent in $4 finished" ntfy.sh/claude-2bb1234q'
+set -g @agent-tracker-on-blocked 'curl -s -d "Agent in $4 needs attention" ntfy.sh/claude-2bb1234q'
+set -g @agent-tracker-on-completed 'curl -s -d "Agent in $4 finished" ntfy.sh/claude-2bb1234q'
 ```
 
 **4. Test it:**

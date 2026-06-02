@@ -11,13 +11,13 @@ sequenceDiagram
     C->>H: hook JSON on stdin
     H->>H: sqlite3 write → DB
     H->>H: render → file cache + tmux option
-    H->>T: tmux set @claude-tracker-status
+    H->>T: tmux set @agent-tracker-status
     H->>T: tmux refresh-client -S
     Note over T: #{@option} re-evaluated instantly
 
     T->>H: #(tracker.sh refresh) every N sec
     H->>H: re-render blocked timer from DB
-    H->>T: tmux set @claude-tracker-status
+    H->>T: tmux set @agent-tracker-status
     Note over T: no stdout — display via #{@option}
 
     T->>H: prefix+a
@@ -28,9 +28,9 @@ No daemon. Each hook is a fire-and-forget bash process. SQLite is the only share
 
 ## Push/Pull Split
 
-**Push (hooks):** Claude event -> write DB -> render to file cache + tmux option -> `refresh-client -S`. The status is pushed to `@claude-tracker-status` via `tmux set`, and `#{@option}` in status-right is re-evaluated immediately on refresh. This eliminates the lag caused by `#()` caching.
+**Push (hooks):** Claude event -> write DB -> render to file cache + tmux option -> `refresh-client -S`. The status is pushed to `@agent-tracker-status` via `tmux set`, and `#{@option}` in status-right is re-evaluated immediately on refresh. This eliminates the lag caused by `#()` caching.
 
-**Pull (refresh):** Tmux calls `#(tracker.sh refresh)` every `status-interval` seconds. Re-queries DB (blocked timer recomputation), updates the tmux option. Produces no stdout — display comes from `#{@claude-tracker-status}`.
+**Pull (refresh):** Tmux calls `#(tracker.sh refresh)` every `status-interval` seconds. Re-queries DB (blocked timer recomputation), updates the tmux option. Produces no stdout — display comes from `#{@agent-tracker-status}`.
 
 **Why not `#()`?** Tmux caches `#()` command output for `status-interval` seconds. `refresh-client -S` redraws the status line but does NOT re-evaluate `#()` — it uses the cached output. This caused up to `status-interval` seconds of lag between hook execution and visible status change. Switching to `#{@option}` (a tmux user option) eliminates this because option values are read fresh on every redraw.
 
@@ -71,7 +71,7 @@ Transition guards:
 
 Completed (`+`) auto-clears to idle when the user is viewing the pane. Four mechanisms:
 
-1. **Deferred clear** (fast, ~3s): `_hook_stop` schedules `pane-focus-if-active` after `@claude-tracker-completed-delay` seconds (default 3). Only clears if the user is focused on the agent's pane. Set to `0` to disable.
+1. **Deferred clear** (fast, ~3s): `_hook_stop` schedules `pane-focus-if-active` after `@agent-tracker-completed-delay` seconds (default 3). Only clears if the user is focused on the agent's pane. Set to `0` to disable.
 2. **Navigation hooks** (immediate): `session-window-changed`, `window-pane-changed`, `client-session-changed` fire `cmd_pane_focus` which clears completed on the focused pane.
 3. **Menu goto** (immediate): `cmd_goto` clears completed when jumping to a pane.
 4. **Refresh cycle** (periodic fallback): `cmd_refresh` spawns `pane-focus` for the active pane every `status-interval` seconds.
@@ -123,12 +123,12 @@ Hook path uses `_load_config_fast` which sources the cache file directly without
 | ~9ms | sqlite3 (combined UPDATE + render) |
 | ~5ms | source config cache |
 | ~6ms | write cache file (printf + mv) |
-| ~3ms | tmux set @claude-tracker-status |
+| ~3ms | tmux set @agent-tracker-status |
 | ~7ms | tmux refresh-client -S |
 
 ### Status-interval enforcement
 
-The plugin sets `status-interval` to `@claude-tracker-status-interval` (default 5s) on load, but only lowers it — never overrides a user's shorter custom interval. This ensures the blocked timer refreshes periodically while respecting user preferences.
+The plugin sets `status-interval` to `@agent-tracker-status-interval` (default 5s) on load, but only lowers it — never overrides a user's shorter custom interval. This ensures the blocked timer refreshes periodically while respecting user preferences.
 
 ### Known upstream limitations
 
@@ -267,7 +267,7 @@ Pi session IDs are file paths (e.g., `/Users/user/.pi/sessions/session-abc.jsonl
    ```
 2. Run the tracker's hook installer:
    ```bash
-   ~/.tmux/plugins/tmux-claude-agent-tracker/install.sh --hooks-only
+   ~/.tmux/plugins/tmux-agent-tracker/install.sh --hooks-only
    ```
 3. Restart Pi.
 
@@ -313,10 +313,10 @@ Status icons are configurable via tmux options:
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `@claude-tracker-icon-idle` | `.` | Idle session indicator |
-| `@claude-tracker-icon-working` | `*` | Working session indicator |
-| `@claude-tracker-icon-completed` | `+` | Completed session indicator |
-| `@claude-tracker-icon-blocked` | `!` | Blocked session indicator |
+| `@agent-tracker-icon-idle` | `.` | Idle session indicator |
+| `@agent-tracker-icon-working` | `*` | Working session indicator |
+| `@agent-tracker-icon-completed` | `+` | Completed session indicator |
+| `@agent-tracker-icon-blocked` | `!` | Blocked session indicator |
 
 Icons are loaded into `ICON_*` vars via `load_config` and cached alongside colors. `_write_cache` and `cmd_menu` use `${ICON_*:-default}` with fallbacks, so unset vars produce the original display.
 
@@ -326,11 +326,11 @@ User-defined commands that fire on state transitions:
 
 | Option | Fires on |
 |--------|----------|
-| `@claude-tracker-on-working` | any -> working |
-| `@claude-tracker-on-completed` | any -> completed |
-| `@claude-tracker-on-blocked` | any -> blocked |
-| `@claude-tracker-on-idle` | any -> idle |
-| `@claude-tracker-on-transition` | every transition (catch-all) |
+| `@agent-tracker-on-working` | any -> working |
+| `@agent-tracker-on-completed` | any -> completed |
+| `@agent-tracker-on-blocked` | any -> blocked |
+| `@agent-tracker-on-idle` | any -> idle |
+| `@agent-tracker-on-transition` | every transition (catch-all) |
 
 Each command receives: `$1=from_status $2=to_status $3=session_id $4=project_name`
 
@@ -351,16 +351,16 @@ A precomputed `_HAS_HOOKS` flag in the config cache. When no hooks configured: z
 
 | Command | Purpose |
 |---------|---------|
-| `tmux-claude-agent-tracker init` | Create DB |
-| `tmux-claude-agent-tracker hook <event>` | Handle Claude hook (stdin JSON) |
-| `tmux-claude-agent-tracker status-bar` | Output cached status string |
-| `tmux-claude-agent-tracker refresh` | Re-render from DB, update tmux option (no output) |
-| `tmux-claude-agent-tracker menu [page]` | Show agent menu |
-| `tmux-claude-agent-tracker goto <target>` | Jump to pane |
-| `tmux-claude-agent-tracker pane-focus <pane_id>` | Clear completed status on focused pane |
-| `tmux-claude-agent-tracker pane-focus-if-active <pane_id>` | Clear completed only if pane is currently focused |
-| `tmux-claude-agent-tracker scan` | Discover untracked Claude processes via pgrep |
-| `tmux-claude-agent-tracker cleanup` | Remove stale sessions |
+| `tmux-agent-tracker init` | Create DB |
+| `tmux-agent-tracker hook <event>` | Handle Claude hook (stdin JSON) |
+| `tmux-agent-tracker status-bar` | Output cached status string |
+| `tmux-agent-tracker refresh` | Re-render from DB, update tmux option (no output) |
+| `tmux-agent-tracker menu [page]` | Show agent menu |
+| `tmux-agent-tracker goto <target>` | Jump to pane |
+| `tmux-agent-tracker pane-focus <pane_id>` | Clear completed status on focused pane |
+| `tmux-agent-tracker pane-focus-if-active <pane_id>` | Clear completed only if pane is currently focused |
+| `tmux-agent-tracker scan` | Discover untracked Claude processes via pgrep |
+| `tmux-agent-tracker cleanup` | Remove stale sessions |
 
 ## Install Architecture
 
@@ -372,7 +372,7 @@ Full setup: CLI symlinks + DB init + tmux.conf line + Claude Code hooks + Gemini
 
 ### TPM (`prefix + I`)
 
-TPM clones the repo and runs `claude-tracker.tmux`. The `.tmux` entry point auto-provisions:
+TPM clones the repo and runs `agent-tracker.tmux`. The `.tmux` entry point auto-provisions:
 - CLI symlinks (idempotent, only recreated if missing or pointing elsewhere)
 - Skill file (only copied if source differs from destination via `cmp -s`)
 - DB init
@@ -387,12 +387,12 @@ Skips CLI/DB/tmux.conf setup, only configures Claude Code and Gemini CLI hooks. 
 
 `./uninstall.sh` reverses all install artifacts:
 
-1. CLI symlink (`~/.local/bin/tmux-claude-agent-tracker`)
+1. CLI symlink (`~/.local/bin/tmux-agent-tracker`)
 2. tmux.conf plugin lines (comment + run-shell line)
-3. Claude Code hooks (jq filter removes entries matching `tmux-claude-agent-tracker`)
+3. Claude Code hooks (jq filter removes entries matching `tmux-agent-tracker`)
 4. Gemini CLI hooks (same jq filter on `~/.gemini/settings.json`)
-5. Skill file (`~/.claude/skills/tmux-claude-agent-tracker/`)
-6. Data directory (`~/.tmux-claude-agent-tracker/`)
+5. Skill file (`~/.claude/skills/tmux-agent-tracker/`)
+6. Data directory (`~/.tmux-agent-tracker/`)
 7. Live tmux state: status-right injection, tmux hooks, options, key binding
 
 ## Testing
@@ -434,8 +434,8 @@ CREATE TABLE sessions (
 ## File Structure
 
 ```
-tmux-claude-agent-tracker/
-├── claude-tracker.tmux          # TPM entry point
+tmux-agent-tracker/
+├── agent-tracker.tmux          # TPM entry point
 ├── scripts/
 │   ├── helpers.sh               # Config loading, tmux helpers
 │   └── tracker.sh               # Core: hook, menu, status-bar, goto
@@ -447,8 +447,8 @@ tmux-claude-agent-tracker/
 ├── install.sh                   # TPM + manual install
 ├── uninstall.sh                 # Full artifact removal
 ├── bin/
-│   └── tmux-claude-agent-tracker    # CLI wrapper -> scripts/tracker.sh
+│   └── tmux-agent-tracker    # CLI wrapper -> scripts/tracker.sh
 └── .claude/skills/
-    └── tmux-claude-agent-tracker/
+    └── tmux-agent-tracker/
         └── SKILL.md             # Claude Code skill reference (copied to ~/.claude/skills/)
 ```

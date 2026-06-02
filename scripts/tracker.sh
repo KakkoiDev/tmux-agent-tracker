@@ -7,9 +7,22 @@ SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPTS_DIR/helpers.sh"
 
 # Config loaded lazily — only when render or sound is needed
-TRACKER_DIR="${TRACKER_DIR:-$HOME/.tmux-claude-agent-tracker}"
+_tracker_dir_was_set=0; [[ -n "${TRACKER_DIR:-}" ]] && _tracker_dir_was_set=1
+TRACKER_DIR="${TRACKER_DIR:-$HOME/.tmux-agent-tracker}"
 DB="${DB:-$TRACKER_DIR/tracker.db}"
 CACHE="${CACHE:-$TRACKER_DIR/status_cache}"
+
+# One-time migration: project renamed tmux-claude-agent-tracker -> tmux-agent-tracker.
+# Move the legacy default data dir to the new one, once, on defaults only.
+_migrate_legacy_dir() {
+    [[ "$_tracker_dir_was_set" -eq 1 ]] && return 0            # explicit override -> never migrate
+    [[ "$TRACKER_DIR" == "$HOME/.tmux-agent-tracker" ]] || return 0
+    local old="$HOME/.tmux-claude-agent-tracker"
+    [[ -d "$old" ]] || return 0                                # nothing to migrate / already done
+    [[ -e "$TRACKER_DIR" ]] && return 0                        # never clobber an existing new dir
+    mv "$old" "$TRACKER_DIR" 2>/dev/null || return 0           # best-effort; never fail init
+}
+_migrate_legacy_dir
 
 # -- sandbox fallback ------------------------------------------------
 # If TRACKER_DIR is not writable (e.g., deer/deerbox SRT sandbox),
@@ -25,8 +38,8 @@ if [[ -d "$TRACKER_DIR" ]]; then
     _probe="$TRACKER_DIR/.sandbox-probe.$$"
     if ! touch "$_probe" 2>/dev/null; then
         _SANDBOX=1
-        DB="/tmp/tmux-claude-agent-tracker-sandbox.db"
-        CACHE="/tmp/tmux-claude-agent-tracker-sandbox-cache"
+        DB="/tmp/tmux-agent-tracker-sandbox.db"
+        CACHE="/tmp/tmux-agent-tracker-sandbox-cache"
     else
         rm -f "$_probe" 2>/dev/null
     fi
@@ -627,9 +640,9 @@ _write_cache() {
     local final="${result% }"
     printf '%s' "$final" > "$CACHE.tmp"
     mv -f "$CACHE.tmp" "$CACHE"
-    # Push to tmux option for instant display via #{@claude-tracker-status}
+    # Push to tmux option for instant display via #{@agent-tracker-status}
     # (#{@option} is re-evaluated on refresh-client -S, unlike #() which is cached)
-    _tmux set -gq @claude-tracker-status "$final" 2>/dev/null || true
+    _tmux set -gq @agent-tracker-status "$final" 2>/dev/null || true
 }
 
 _render_cache() {
@@ -666,7 +679,7 @@ cmd_status_bar() {
 # ── merge sandbox ────────────────────────────────────────────────────
 
 cmd_merge_sandbox() {
-    local sandbox_db="/tmp/tmux-claude-agent-tracker-sandbox.db"
+    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
     [[ -f "$sandbox_db" ]] || return 0
 
     # Import sandbox sessions into host DB.
@@ -752,7 +765,7 @@ cmd_refresh() {
     cmd_scan 2>/dev/null || true
     # Merge sandbox sessions if any
     cmd_merge_sandbox 2>/dev/null || true
-    # No stdout; display comes from #{@claude-tracker-status}
+    # No stdout; display comes from #{@agent-tracker-status}
 }
 
 # ── menu ──────────────────────────────────────────────────────────────

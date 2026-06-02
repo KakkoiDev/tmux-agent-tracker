@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tmux Tracker Dev"
+  short_description: "Develop and debug tmux tracker internals."
+  default_prompt: "Use $tmux-agent-tracker-dev to modify tracker internals, tests, and debug workflows for this repository."

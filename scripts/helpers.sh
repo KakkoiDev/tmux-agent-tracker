@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# helpers.sh - Config loading and tmux helpers for tmux-claude-agent-tracker
+# helpers.sh - Config loading and tmux helpers for tmux-agent-tracker
 
 # ── Plugin directory resolution ──────────────────────────────────────
 
-if [[ -z "${CLAUDE_TRACKER_PLUGIN_DIR:-}" ]]; then
-    CLAUDE_TRACKER_PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -z "${AGENT_TRACKER_PLUGIN_DIR:-}" ]]; then
+    AGENT_TRACKER_PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
-SCRIPTS_DIR="$CLAUDE_TRACKER_PLUGIN_DIR/scripts"
+SCRIPTS_DIR="$AGENT_TRACKER_PLUGIN_DIR/scripts"
 
 # ── platform helpers ──────────────────────────────────────────────────
 
@@ -97,7 +97,7 @@ HOOK_ON_TRANSITION=""
 _HAS_HOOKS=""
 
 load_config() {
-    local cache="${TRACKER_DIR:-$HOME/.tmux-claude-agent-tracker}/config_cache"
+    local cache="${TRACKER_DIR:-$HOME/.tmux-agent-tracker}/config_cache"
 
     # Use cache if fresh (< 60s) — shared across all hook invocations
     if [[ -f "$cache" ]]; then
@@ -110,27 +110,27 @@ load_config() {
         fi
     fi
 
-    KEYBINDING=$(get_tmux_option "@claude-tracker-keybinding" "a")
-    ITEMS_PER_PAGE=$(get_tmux_option "@claude-tracker-items-per-page" "10")
-    KEY_NEXT=$(get_tmux_option "@claude-tracker-key-next" "i")
-    KEY_PREV=$(get_tmux_option "@claude-tracker-key-prev" "o")
-    KEY_QUIT=$(get_tmux_option "@claude-tracker-key-quit" "q")
-    COLOR_WORKING=$(get_tmux_option "@claude-tracker-color-working" "black")
-    COLOR_BLOCKED=$(get_tmux_option "@claude-tracker-color-blocked" "black")
-    COLOR_IDLE=$(get_tmux_option "@claude-tracker-color-idle" "black")
-    COLOR_COMPLETED=$(get_tmux_option "@claude-tracker-color-completed" "black")
-    SHOW_PROJECT=$(get_tmux_option "@claude-tracker-show-project" "0")
-    ICON_IDLE=$(get_tmux_option "@claude-tracker-icon-idle" ".")
-    ICON_WORKING=$(get_tmux_option "@claude-tracker-icon-working" "*")
-    ICON_COMPLETED=$(get_tmux_option "@claude-tracker-icon-completed" "+")
-    ICON_BLOCKED=$(get_tmux_option "@claude-tracker-icon-blocked" "!")
-    COMPLETED_DELAY=$(get_tmux_option "@claude-tracker-completed-delay" "3")
-    DEBUG_LOG=$(get_tmux_option "@claude-tracker-debug-log" "0")
-    HOOK_ON_WORKING=$(get_tmux_option "@claude-tracker-on-working" "")
-    HOOK_ON_COMPLETED=$(get_tmux_option "@claude-tracker-on-completed" "")
-    HOOK_ON_BLOCKED=$(get_tmux_option "@claude-tracker-on-blocked" "")
-    HOOK_ON_IDLE=$(get_tmux_option "@claude-tracker-on-idle" "")
-    HOOK_ON_TRANSITION=$(get_tmux_option "@claude-tracker-on-transition" "")
+    KEYBINDING=$(get_tmux_option "@agent-tracker-keybinding" "a")
+    ITEMS_PER_PAGE=$(get_tmux_option "@agent-tracker-items-per-page" "10")
+    KEY_NEXT=$(get_tmux_option "@agent-tracker-key-next" "i")
+    KEY_PREV=$(get_tmux_option "@agent-tracker-key-prev" "o")
+    KEY_QUIT=$(get_tmux_option "@agent-tracker-key-quit" "q")
+    COLOR_WORKING=$(get_tmux_option "@agent-tracker-color-working" "black")
+    COLOR_BLOCKED=$(get_tmux_option "@agent-tracker-color-blocked" "black")
+    COLOR_IDLE=$(get_tmux_option "@agent-tracker-color-idle" "black")
+    COLOR_COMPLETED=$(get_tmux_option "@agent-tracker-color-completed" "black")
+    SHOW_PROJECT=$(get_tmux_option "@agent-tracker-show-project" "0")
+    ICON_IDLE=$(get_tmux_option "@agent-tracker-icon-idle" ".")
+    ICON_WORKING=$(get_tmux_option "@agent-tracker-icon-working" "*")
+    ICON_COMPLETED=$(get_tmux_option "@agent-tracker-icon-completed" "+")
+    ICON_BLOCKED=$(get_tmux_option "@agent-tracker-icon-blocked" "!")
+    COMPLETED_DELAY=$(get_tmux_option "@agent-tracker-completed-delay" "3")
+    DEBUG_LOG=$(get_tmux_option "@agent-tracker-debug-log" "0")
+    HOOK_ON_WORKING=$(get_tmux_option "@agent-tracker-on-working" "")
+    HOOK_ON_COMPLETED=$(get_tmux_option "@agent-tracker-on-completed" "")
+    HOOK_ON_BLOCKED=$(get_tmux_option "@agent-tracker-on-blocked" "")
+    HOOK_ON_IDLE=$(get_tmux_option "@agent-tracker-on-idle" "")
+    HOOK_ON_TRANSITION=$(get_tmux_option "@agent-tracker-on-transition" "")
     if [[ -n "$HOOK_ON_WORKING" || -n "$HOOK_ON_COMPLETED" || -n "$HOOK_ON_BLOCKED" || -n "$HOOK_ON_IDLE" || -n "$HOOK_ON_TRANSITION" ]]; then
         _HAS_HOOKS=1
     else
@@ -186,7 +186,7 @@ check_tmux_version() {
 
 ensure_tmux_version() {
     if ! check_tmux_version "3.0"; then
-        echo "tmux-claude-agent-tracker requires tmux 3.0+" >&2
+        echo "tmux-agent-tracker requires tmux 3.0+" >&2
         return 1
     fi
 }

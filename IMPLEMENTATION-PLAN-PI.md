@@ -2,7 +2,7 @@
 
 ## Overview
 
-Add **Pi coding agent** (`pi`) as a supported agent client in `tmux-claude-agent-tracker`. Pi runs as a Node.js-based TUI agent (process name: `pi`). Unlike Claude Code and Gemini CLI, Pi has no native CLI hook system — instead it has a TypeScript extension API with lifecycle events.
+Add **Pi coding agent** (`pi`) as a supported agent client in `tmux-agent-tracker`. Pi runs as a Node.js-based TUI agent (process name: `pi`). Unlike Claude Code and Gemini CLI, Pi has no native CLI hook system — instead it has a TypeScript extension API with lifecycle events.
 
 The integration uses **pi-hooks** (`npm:@hsingjui/pi-hooks`), a third-party Pi package that adapts Claude Code's hook configuration format to Pi's extension event system. Hooks are configured declaratively in Pi's settings JSON and invoke external commands with Claude Code-compatible JSON on stdin.
 
@@ -115,7 +115,7 @@ Actually, simpler: pi-hooks sends `transcript_path` pointing to the session file
 
 wait, actually the `agent_client` column has a default of `'claude'`. If we don't explicitly set it for pi sessions, they'll show as `[claude]` in the menu. Let's think about this differently.
 
-Since pi-hooks invokes `tmux-claude-agent-tracker hook SessionStart` with JSON on stdin, the tracker doesn't know which agent sent it. The `cwd` and `session_id` could come from any agent.
+Since pi-hooks invokes `tmux-agent-tracker hook SessionStart` with JSON on stdin, the tracker doesn't know which agent sent it. The `cwd` and `session_id` could come from any agent.
 
 **Solution:** Add detection in `cmd_hook()`. Before calling `_ensure_session`, check the process tree. If `TMUX_PANE` is set, find the pane's shell and check for a `pi` child process.
 
@@ -160,7 +160,7 @@ This is the Pi settings configuration that configures pi-hooks to call the track
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook SessionStart"
+            "command": "tmux-agent-tracker hook SessionStart"
           }
         ]
       }
@@ -171,7 +171,7 @@ This is the Pi settings configuration that configures pi-hooks to call the track
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook UserPromptSubmit"
+            "command": "tmux-agent-tracker hook UserPromptSubmit"
           }
         ]
       }
@@ -182,7 +182,7 @@ This is the Pi settings configuration that configures pi-hooks to call the track
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook PostToolUse"
+            "command": "tmux-agent-tracker hook PostToolUse"
           }
         ]
       }
@@ -193,7 +193,7 @@ This is the Pi settings configuration that configures pi-hooks to call the track
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook PostToolUseFailure"
+            "command": "tmux-agent-tracker hook PostToolUseFailure"
           }
         ]
       }
@@ -204,7 +204,7 @@ This is the Pi settings configuration that configures pi-hooks to call the track
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook Stop"
+            "command": "tmux-agent-tracker hook Stop"
           }
         ]
       }
@@ -215,7 +215,7 @@ This is the Pi settings configuration that configures pi-hooks to call the track
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook SessionEnd"
+            "command": "tmux-agent-tracker hook SessionEnd"
           }
         ]
       }
@@ -269,7 +269,7 @@ install_pi_hooks() {
     if jq -e '.hooks.SessionStart' "$pi_settings" >/dev/null 2>&1; then
         local has_tracker
         has_tracker=$(jq -r '.hooks.SessionStart[]?.hooks[]?.command' "$pi_settings" 2>/dev/null | \
-                      grep -c "tmux-claude-agent-tracker" || echo "0")
+                      grep -c "tmux-agent-tracker" || echo "0")
         if [[ "$has_tracker" -gt 0 ]]; then
             echo "pi hooks: already configured"
             return

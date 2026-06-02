@@ -1,9 +1,9 @@
 ---
-name: tmux-claude-agent-tracker-dev
-description: Development guide for tmux-claude-agent-tracker. Debugging, testing, architecture internals, and conventions. Use when developing or debugging this project.
+name: tmux-agent-tracker-dev
+description: Development guide for tmux-agent-tracker. Debugging, testing, architecture internals, and conventions. Use when developing or debugging this project.
 ---
 
-# tmux-claude-agent-tracker Development
+# tmux-agent-tracker Development
 
 Pure bash + SQLite tmux plugin. See MEMO.md for full details, ARCHITECTURE.md for design diagrams.
 
@@ -13,7 +13,7 @@ Pure bash + SQLite tmux plugin. See MEMO.md for full details, ARCHITECTURE.md fo
 |------|-------|---------|
 | `scripts/tracker.sh` | 688 | All core logic: hooks, render, menu, goto, scan, cleanup |
 | `scripts/helpers.sh` | 162 | Config loading, tmux option helpers, platform detection |
-| `claude-tracker.tmux` | 71 | TPM entry point, status bar injection, keybindings |
+| `agent-tracker.tmux` | 71 | TPM entry point, status bar injection, keybindings |
 | `tests/tracker.bats` | 1363 | 121 unit tests (mocked tmux/git) |
 | `tests/integration.bats` | 433 | 20 integration tests (isolated tmux server) |
 | `tests/helpers.bash` | 129 | Unit test helpers: DB setup, mocks |
@@ -24,10 +24,10 @@ Pure bash + SQLite tmux plugin. See MEMO.md for full details, ARCHITECTURE.md fo
 
 ```bash
 # Enable debug logging
-tmux set -g @claude-tracker-debug-log 1
+tmux set -g @agent-tracker-debug-log 1
 
 # Watch the log
-tail -f ~/.tmux-claude-agent-tracker/debug.log
+tail -f ~/.tmux-agent-tracker/debug.log
 ```
 
 Log entries include timestamps and context:
@@ -96,11 +96,11 @@ Key helpers in `tests/integration_helpers.bash`:
 
 | Variable | Overridable | Purpose |
 |----------|-------------|---------|
-| `TRACKER_DIR` | Yes | Data directory (default: `~/.tmux-claude-agent-tracker`) |
+| `TRACKER_DIR` | Yes | Data directory (default: `~/.tmux-agent-tracker`) |
 | `DB` | Yes | Database path (default: `$TRACKER_DIR/tracker.db`) |
 | `CACHE` | Yes | Status cache path (default: `$TRACKER_DIR/status_cache`) |
 | `TMUX_PANE` | No | Set by tmux, current pane ID |
-| `CLAUDE_TRACKER_PLUGIN_DIR` | Yes | Plugin root directory |
+| `AGENT_TRACKER_PLUGIN_DIR` | Yes | Plugin root directory |
 | `DEBUG_LOG` | Internal | Loaded from config, controls `_debug_log` |
 
 ## Known Upstream Limitations (Claude Code)

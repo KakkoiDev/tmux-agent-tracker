@@ -3,7 +3,7 @@
 ## Problem
 
 When Claude Code runs inside deer/deerbox's SRT sandbox:
-- `~/.tmux-claude-agent-tracker/tracker.db` is **not writable** (sandbox only allows writes to worktree, `~/.claude/`, `/tmp/`)
+- `~/.tmux-agent-tracker/tracker.db` is **not writable** (sandbox only allows writes to worktree, `~/.claude/`, `/tmp/`)
 - `TMUX_PANE` and `TMUX` env vars are **not forwarded** by default
 - `tmux` commands (`refresh-client`, `set`, `display-message`) **fail** because the tmux socket is inaccessible
 - `config_cache` write fails (same dir as DB)
@@ -53,8 +53,8 @@ if [[ -d "$TRACKER_DIR" ]]; then
     _probe="$TRACKER_DIR/.sandbox-probe.$$"
     if ! touch "$_probe" 2>/dev/null; then
         _SANDBOX=1
-        DB="/tmp/tmux-claude-agent-tracker-sandbox.db"
-        CACHE="/tmp/tmux-claude-agent-tracker-sandbox-cache"
+        DB="/tmp/tmux-agent-tracker-sandbox.db"
+        CACHE="/tmp/tmux-agent-tracker-sandbox-cache"
     else
         rm -f "$_probe" 2>/dev/null
     fi
@@ -190,7 +190,7 @@ New command `cmd_merge_sandbox` that the host tracker runs periodically to pull 
 
 ```bash
 cmd_merge_sandbox() {
-    local sandbox_db="/tmp/tmux-claude-agent-tracker-sandbox.db"
+    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
     [[ -f "$sandbox_db" ]] || return 0
 
     # Import sandbox sessions into host DB.
@@ -228,7 +228,7 @@ merge-sandbox) cmd_merge_sandbox ;;
 
 #### 7. Auto-init sandbox DB on first hook
 
-The sandbox Claude Code session won't run `tmux-claude-agent-tracker init`. Add auto-init:
+The sandbox Claude Code session won't run `tmux-agent-tracker init`. Add auto-init:
 
 ```bash
 # After _SANDBOX detection block:
@@ -255,7 +255,7 @@ Even though tmux commands won't work in the sandbox, forwarding `TMUX_PANE` lets
 - **No tmux in sandbox**: All tmux calls are no-ops via `_tmux` wrapper. The sandbox session tracks state in the temp DB purely for host-side merge.
 - **DB schema version**: The sandbox DB is created fresh with `IF NOT EXISTS` using the current schema. No migration needed. `_ensure_schema` is skipped (marker files can't be written).
 - **`load_config` in sandbox**: Falls back to hardcoded defaults. No tmux option reads.
-- **Debug logging**: `_debug_log` writes to `$TRACKER_DIR/debug.log` which is not writable in sandbox. Existing `|| return 0` guard handles this silently. Optionally redirect to `/tmp/tmux-claude-agent-tracker-sandbox.log` when `_SANDBOX=1`.
+- **Debug logging**: `_debug_log` writes to `$TRACKER_DIR/debug.log` which is not writable in sandbox. Existing `|| return 0` guard handles this silently. Optionally redirect to `/tmp/tmux-agent-tracker-sandbox.log` when `_SANDBOX=1`.
 - **Probe write cost**: ~2ms per hook invocation (one `touch` + one `rm`). Acceptable given hooks already take ~65-77ms. Each hook is a new bash process, so the probe cannot be cached across invocations.
 - **`TRACKER_DIR` does not exist**: If the directory was never created (no `init` ran), `[[ -d "$TRACKER_DIR" ]]` returns false, `_SANDBOX` stays 0. This is correct - not a sandbox, just uninitialized. Normal `cmd_init` handles this case.
 - **Pane eviction after merge**: Host's `_ensure_session` evicts other sessions on the same pane. Sandbox sessions have empty panes, so they are never evicted by pane-based logic.
@@ -278,16 +278,16 @@ sandbox-exec -p '(version 1)(allow default)(deny file-write* (subpath "/tmp/test
   bash -c '
     export TRACKER_DIR=/tmp/test-tracker-sandbox
     echo "{\"session_id\":\"test-sandbox\",\"cwd\":\"/tmp\"}" | \
-      ~/Code/tmux-claude-agent-tracker/scripts/tracker.sh hook SessionStart
+      ~/Code/tmux-agent-tracker/scripts/tracker.sh hook SessionStart
   '
 
 # Verify sandbox DB created in /tmp
-sqlite3 /tmp/tmux-claude-agent-tracker-sandbox.db \
+sqlite3 /tmp/tmux-agent-tracker-sandbox.db \
   "SELECT session_id, status FROM sessions;"
 
 # Verify host merge
-~/Code/tmux-claude-agent-tracker/scripts/tracker.sh merge-sandbox
-sqlite3 ~/.tmux-claude-agent-tracker/tracker.db \
+~/Code/tmux-agent-tracker/scripts/tracker.sh merge-sandbox
+sqlite3 ~/.tmux-agent-tracker/tracker.db \
   "SELECT session_id, status FROM sessions WHERE session_id='test-sandbox';"
 
 # Fallback: chmod-based test (simpler, doesn't need sandbox-exec)
@@ -295,6 +295,6 @@ mkdir -p /tmp/test-tracker-sandbox
 chmod 555 /tmp/test-tracker-sandbox
 TRACKER_DIR=/tmp/test-tracker-sandbox \
   echo '{"session_id":"test-chmod","cwd":"/tmp"}' | \
-  ~/Code/tmux-claude-agent-tracker/scripts/tracker.sh hook SessionStart
+  ~/Code/tmux-agent-tracker/scripts/tracker.sh hook SessionStart
 chmod 755 /tmp/test-tracker-sandbox  # restore
 ```

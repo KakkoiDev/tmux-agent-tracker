@@ -1,9 +1,9 @@
 ---
-name: tmux-claude-agent-tracker
-description: Track Claude Code and Codex agent sessions in tmux. Use when installing, configuring, debugging, or customizing tmux-claude-agent-tracker hooks, status bar rendering, menu behavior, and state transitions.
+name: tmux-agent-tracker
+description: Track Claude Code and Codex agent sessions in tmux. Use when installing, configuring, debugging, or customizing tmux-agent-tracker hooks, status bar rendering, menu behavior, and state transitions.
 ---
 
-# tmux-claude-agent-tracker
+# tmux-agent-tracker
 
 Track Claude Code, Pi, and Codex agent sessions in the tmux status bar. Hook-driven, no daemon, no polling.
 
@@ -12,7 +12,7 @@ Track Claude Code, Pi, and Codex agent sessions in the tmux status bar. Hook-dri
 1. Claude Code, Pi, and Gemini CLI hooks fire on session events and write JSON to stdin
 2. Codex `notify` fires on agent events and calls `tracker.sh codex-notify`
 3. `tracker.sh` parses hook JSON, updates a SQLite DB, and re-renders the status bar
-4. `#{@claude-tracker-status}` displays the cached status string (instant, no subprocess)
+4. `#{@agent-tracker-status}` displays the cached status string (instant, no subprocess)
 5. A periodic `#(tracker.sh refresh)` keeps the blocked timer current
 6. Dead sessions are reaped by cross-referencing tmux panes
 
@@ -33,7 +33,7 @@ Completed auto-clears to idle when the user focuses the pane.
 
 ## CLI Commands
 
-All commands go through `tmux-claude-agent-tracker` (symlinked to `scripts/tracker.sh`).
+All commands go through `tmux-agent-tracker` (symlinked to `scripts/tracker.sh`).
 
 | Command | Purpose |
 |---------|---------|
@@ -86,12 +86,12 @@ These hooks are configured in `~/.pi/agent/settings.json`. The `install.sh` scri
 {
   "use": { "extension": ["pi-hooks"] },
   "hooks": {
-    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionStart" }] }],
-    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook UserPromptSubmit" }] }],
-    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUse" }] }],
-    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUseFailure" }] }],
-    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Stop" }] }],
-    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionEnd" }] }]
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionStart" }] }],
+    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook UserPromptSubmit" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }],
+    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUseFailure" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionEnd" }] }]
   }
 }
 ```
@@ -121,7 +121,7 @@ These hooks must be in `~/.claude/settings.json`. The `install.sh` script config
 Codex must include this in `~/.codex/config.toml`:
 
 ```toml
-notify = ["tmux-claude-agent-tracker", "codex-notify"]
+notify = ["tmux-agent-tracker", "codex-notify"]
 ```
 
 Without this notify hook, no Codex sessions are tracked and `[codex]` will never appear in the menu.
@@ -134,32 +134,32 @@ Set in `~/.tmux.conf` with `set -g @option value`.
 
 | Option | Default | Purpose |
 |--------|---------|---------|
-| `@claude-tracker-keybinding` | `a` | Menu key (after prefix) |
-| `@claude-tracker-items-per-page` | `10` | Menu page size |
-| `@claude-tracker-key-next` | `i` | Next page key |
-| `@claude-tracker-key-prev` | `o` | Previous page key |
-| `@claude-tracker-key-quit` | `q` | Quit menu key |
-| `@claude-tracker-show-project` | `0` | `1` to show project name in status |
-| `@claude-tracker-status-interval` | `60` | Blocked timer refresh interval (seconds) |
-| `@claude-tracker-completed-delay` | `3` | Seconds to show completed before auto-clear (`0` to disable) |
+| `@agent-tracker-keybinding` | `a` | Menu key (after prefix) |
+| `@agent-tracker-items-per-page` | `10` | Menu page size |
+| `@agent-tracker-key-next` | `i` | Next page key |
+| `@agent-tracker-key-prev` | `o` | Previous page key |
+| `@agent-tracker-key-quit` | `q` | Quit menu key |
+| `@agent-tracker-show-project` | `0` | `1` to show project name in status |
+| `@agent-tracker-status-interval` | `60` | Blocked timer refresh interval (seconds) |
+| `@agent-tracker-completed-delay` | `3` | Seconds to show completed before auto-clear (`0` to disable) |
 
 ### Colors
 
 | Option | Default | Purpose |
 |--------|---------|---------|
-| `@claude-tracker-color-working` | `black` | Working count color |
-| `@claude-tracker-color-blocked` | `black` | Blocked count color |
-| `@claude-tracker-color-idle` | `black` | Idle count color |
-| `@claude-tracker-color-completed` | `black` | Completed count color |
+| `@agent-tracker-color-working` | `black` | Working count color |
+| `@agent-tracker-color-blocked` | `black` | Blocked count color |
+| `@agent-tracker-color-idle` | `black` | Idle count color |
+| `@agent-tracker-color-completed` | `black` | Completed count color |
 
 ### Icons
 
 | Option | Default | Purpose |
 |--------|---------|---------|
-| `@claude-tracker-icon-idle` | `.` | Idle indicator |
-| `@claude-tracker-icon-working` | `*` | Working indicator |
-| `@claude-tracker-icon-completed` | `+` | Completed indicator |
-| `@claude-tracker-icon-blocked` | `!` | Blocked indicator |
+| `@agent-tracker-icon-idle` | `.` | Idle indicator |
+| `@agent-tracker-icon-working` | `*` | Working indicator |
+| `@agent-tracker-icon-completed` | `+` | Completed indicator |
+| `@agent-tracker-icon-blocked` | `!` | Blocked indicator |
 
 ### State Transition Hooks
 
@@ -167,32 +167,32 @@ Shell commands executed when an agent changes state. Each receives 4 args: `$1=f
 
 | Option | Default | Fires on |
 |--------|---------|----------|
-| `@claude-tracker-on-working` | `""` | Any state -> working |
-| `@claude-tracker-on-completed` | `""` | Any state -> completed |
-| `@claude-tracker-on-blocked` | `""` | Any state -> blocked |
-| `@claude-tracker-on-idle` | `""` | Any state -> idle |
-| `@claude-tracker-on-transition` | `""` | Any state change (catch-all) |
+| `@agent-tracker-on-working` | `""` | Any state -> working |
+| `@agent-tracker-on-completed` | `""` | Any state -> completed |
+| `@agent-tracker-on-blocked` | `""` | Any state -> blocked |
+| `@agent-tracker-on-idle` | `""` | Any state -> idle |
+| `@agent-tracker-on-transition` | `""` | Any state change (catch-all) |
 
 Example:
 ```bash
-set -g @claude-tracker-on-blocked 'notify-send "Claude blocked" "Agent in $4 needs attention"'
-set -g @claude-tracker-on-completed 'paplay /usr/share/sounds/complete.oga'
+set -g @agent-tracker-on-blocked 'notify-send "Claude blocked" "Agent in $4 needs attention"'
+set -g @agent-tracker-on-completed 'paplay /usr/share/sounds/complete.oga'
 ```
 
 ## Key Files
 
 | File | Purpose |
 |------|---------|
-| `claude-tracker.tmux` | TPM entry point, status bar injection, pane-focus hooks |
+| `agent-tracker.tmux` | TPM entry point, status bar injection, pane-focus hooks |
 | `scripts/tracker.sh` | All commands: hook, render, menu, goto, scan, cleanup |
 | `scripts/helpers.sh` | Config loading, tmux option helpers, version check |
-| `bin/tmux-claude-agent-tracker` | CLI wrapper (delegates to tracker.sh) |
+| `bin/tmux-agent-tracker` | CLI wrapper (delegates to tracker.sh) |
 | `install.sh` | Symlinks CLI, inits DB, configures tmux.conf and Claude Code hooks |
 | `tests/tracker.bats` | Full test suite (bats) |
 
 ## DB Schema
 
-Single table `sessions` in `~/.tmux-claude-agent-tracker/tracker.db`:
+Single table `sessions` in `~/.tmux-agent-tracker/tracker.db`:
 
 | Column | Type | Purpose |
 |--------|------|---------|

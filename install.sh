@@ -2,8 +2,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BIN="$SCRIPT_DIR/bin/tmux-claude-agent-tracker"
-LINK="$HOME/.local/bin/tmux-claude-agent-tracker"
+BIN="$SCRIPT_DIR/bin/tmux-agent-tracker"
+LINK="$HOME/.local/bin/tmux-agent-tracker"
 CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 CODEX_CONFIG="$HOME/.codex/config.toml"
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -31,6 +31,81 @@ fi
 HAS_JQ=false
 command -v jq >/dev/null && HAS_JQ=true
 
+# ── upgrade pre-clean: remove stale pre-rename artifacts ─────────────
+# Project was renamed tmux-claude-agent-tracker -> tmux-agent-tracker.
+# Without this, a pull + reinstall leaves a broken old CLI symlink, stale
+# skills, dead old hooks, and a dead tmux.conf/codex line behind. The old
+# command name contains "claude-", which the new "tmux-agent-tracker"
+# entries do not, so the old-only filters never touch freshly written ones.
+# Delete matching lines in place while following symlinks. BSD `sed -i`
+# refuses symlinked targets (e.g. a dotfiles-managed ~/.tmux.conf); the
+# temp + cat-redirect writes through the link and preserves it.
+_strip_lines() {
+    local file="$1" script="$2" tmp
+    [[ -f "$file" ]] || return 0
+    tmp="$(mktemp)"
+    sed "$script" "$file" > "$tmp" && cat "$tmp" > "$file"
+    rm -f "$tmp"
+}
+
+_upgrade_preclean() {
+    # Hooks and the Codex notify line are (re)configured in BOTH modes, so
+    # always strip their stale old-name versions.
+
+    # old hook entries in Claude / Gemini / Pi settings (old command name only)
+    if $HAS_JQ; then
+        local settings t
+        for settings in "$HOME/.claude/settings.json" \
+                        "$HOME/.gemini/settings.json" \
+                        "$HOME/.pi/agent/settings.json"; do
+            [[ -f "$settings" ]] || continue
+            t="${settings}.preclean"
+            if jq '
+                if .hooks then
+                    .hooks |= with_entries(
+                        .value |= map(
+                            .hooks |= map(select(.command | test("tmux-claude-agent-tracker") | not))
+                            | select(.hooks | length > 0)
+                        )
+                        | select(.value | length > 0)
+                    )
+                    | if (.hooks | length) == 0 then del(.hooks) else . end
+                else . end
+            ' "$settings" > "$t" 2>/dev/null; then
+                mv "$t" "$settings"
+            else
+                rm -f "$t"
+            fi
+        done
+    fi
+
+    # old Codex notify line + comment
+    if [[ -f "$CODEX_CONFIG" ]] && grep -Fq '"tmux-claude-agent-tracker", "codex-notify"' "$CODEX_CONFIG"; then
+        _strip_lines "$CODEX_CONFIG" '/# tmux-claude-agent-tracker/d; /tmux-claude-agent-tracker", "codex-notify/d'
+    fi
+
+    # The CLI symlink, skill dirs, and tmux.conf line are only installed in
+    # full mode, so only their cleanup belongs here (a --hooks-only run must
+    # not strip the tmux.conf plugin line without re-adding it).
+    if ! $HOOKS_ONLY; then
+        rm -f "$HOME/.local/bin/tmux-claude-agent-tracker"
+
+        local skills_root
+        for skills_root in "$HOME/.claude/skills" "$CODEX_SKILLS_DIR"; do
+            rm -rf "$skills_root/tmux-claude-agent-tracker" \
+                   "$skills_root/tmux-claude-agent-tracker-dev"
+        done
+
+        local tmux_conf="$HOME/.tmux.conf"
+        if [[ -f "$tmux_conf" ]] && grep -q "claude-tracker.tmux" "$tmux_conf" 2>/dev/null; then
+            _strip_lines "$tmux_conf" '/# Claude Agent Tracker/d; /claude-tracker\.tmux/d'
+        fi
+    fi
+
+    return 0
+}
+_upgrade_preclean
+
 # ── hooks-only mode: skip CLI/DB/tmux.conf ───────────────────────────
 
 if ! $HOOKS_ONLY; then
@@ -48,10 +123,10 @@ echo "CLI: $LINK"
 # ── add plugin to tmux.conf ──────────────────────────────────────────
 
 TMUX_CONF="$HOME/.tmux.conf"
-PLUGIN_LINE="run-shell '$SCRIPT_DIR/claude-tracker.tmux'"
-if ! grep -qF "claude-tracker.tmux" "$TMUX_CONF" 2>/dev/null; then
+PLUGIN_LINE="run-shell '$SCRIPT_DIR/agent-tracker.tmux'"
+if ! grep -qF "agent-tracker.tmux" "$TMUX_CONF" 2>/dev/null; then
     echo "" >> "$TMUX_CONF"
-    echo "# Claude Agent Tracker" >> "$TMUX_CONF"
+    echo "# Agent Tracker" >> "$TMUX_CONF"
     echo "$PLUGIN_LINE" >> "$TMUX_CONF"
     echo "tmux.conf: added plugin line"
 else
@@ -60,7 +135,7 @@ fi
 
 # ── install skill bundles (Claude + Codex) ───────────────────────────
 
-for skill_dir in "$SCRIPT_DIR"/.claude/skills/tmux-claude-agent-tracker*; do
+for skill_dir in "$SCRIPT_DIR"/.claude/skills/tmux-agent-tracker*; do
     [[ -d "$skill_dir" ]] || continue
     skill_name="$(basename "$skill_dir")"
     for skills_root in "$HOME/.claude/skills" "$CODEX_SKILLS_DIR"; do
@@ -95,15 +170,15 @@ Add the following to ~/.claude/settings.json under "hooks":
 
 {
   "hooks": {
-    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionStart" }] }],
-    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionEnd" }] }],
-    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook UserPromptSubmit" }] }],
-    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUse" }] }],
-    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUseFailure" }] }],
-    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Stop" }] }],
-    "Notification": [{ "matcher": "permission_prompt|elicitation_dialog", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Notification" }] }],
-    "PermissionRequest": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PermissionRequest" }] }],
-    "TaskCompleted": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook TaskCompleted" }] }]
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionStart" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionEnd" }] }],
+    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook UserPromptSubmit" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }],
+    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUseFailure" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "Notification": [{ "matcher": "permission_prompt|elicitation_dialog", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Notification" }] }],
+    "PermissionRequest": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PermissionRequest" }] }],
+    "TaskCompleted": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook TaskCompleted" }] }]
   }
 }
 MANUAL_HOOKS
@@ -125,7 +200,7 @@ install_hooks() {
             first=false
             local matcher
             matcher=$(_get_matcher "$event")
-            hooks_json+="\"$event\":[{\"matcher\":\"$matcher\",\"hooks\":[{\"type\":\"command\",\"command\":\"tmux-claude-agent-tracker hook $event\"}]}]"
+            hooks_json+="\"$event\":[{\"matcher\":\"$matcher\",\"hooks\":[{\"type\":\"command\",\"command\":\"tmux-agent-tracker hook $event\"}]}]"
         done
         hooks_json+="}"
 
@@ -149,7 +224,7 @@ install_hooks() {
     fi
 
     for event in "${TRACKER_EVENTS[@]}"; do
-        local cmd="tmux-claude-agent-tracker hook $event"
+        local cmd="tmux-agent-tracker hook $event"
 
         # Check if this exact command already exists under this event
         if jq -e --arg event "$event" --arg cmd "$cmd" '
@@ -208,12 +283,12 @@ Add the following to ~/.gemini/settings.json under "hooks":
 
 {
   "hooks": {
-    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionStart" }] }],
-    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionEnd" }] }],
-    "BeforeAgent": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook UserPromptSubmit" }] }],
-    "AfterAgent": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Stop" }] }],
-    "AfterTool": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUse" }] }],
-    "Notification": [{ "matcher": "ToolPermission", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Notification" }] }]
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionStart" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionEnd" }] }],
+    "BeforeAgent": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook UserPromptSubmit" }] }],
+    "AfterAgent": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "AfterTool": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }],
+    "Notification": [{ "matcher": "ToolPermission", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Notification" }] }]
   }
 }
 MANUAL_GEMINI
@@ -242,7 +317,7 @@ install_gemini_hooks() {
             local matcher="${remainder#*:}"
             $first || hooks_json+=","
             first=false
-            hooks_json+="\"$gemini_event\":[{\"matcher\":\"$matcher\",\"hooks\":[{\"type\":\"command\",\"command\":\"tmux-claude-agent-tracker hook $tracker_cmd\"}]}]"
+            hooks_json+="\"$gemini_event\":[{\"matcher\":\"$matcher\",\"hooks\":[{\"type\":\"command\",\"command\":\"tmux-agent-tracker hook $tracker_cmd\"}]}]"
         done
         hooks_json+="}"
 
@@ -267,7 +342,7 @@ install_gemini_hooks() {
         local remainder="${entry#*:}"
         local tracker_cmd="${remainder%%:*}"
         local matcher="${remainder#*:}"
-        local cmd="tmux-claude-agent-tracker hook $tracker_cmd"
+        local cmd="tmux-agent-tracker hook $tracker_cmd"
 
         # Check if this exact command already exists under this event
         if jq -e --arg event "$gemini_event" --arg cmd "$cmd" '
@@ -318,12 +393,12 @@ To configure Pi hooks via pi-hooks:
 
 {
   "hooks": {
-    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionStart" }] }],
-    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook UserPromptSubmit" }] }],
-    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUse" }] }],
-    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook PostToolUseFailure" }] }],
-    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook Stop" }] }],
-    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-claude-agent-tracker hook SessionEnd" }] }]
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionStart" }] }],
+    "UserPromptSubmit": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook UserPromptSubmit" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }],
+    "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUseFailure" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionEnd" }] }]
   }
 }
 
@@ -365,7 +440,7 @@ install_pi_hooks() {
         for event in "${PI_EVENTS[@]}"; do
             $first || hooks_json+=","
             first=false
-            hooks_json+="\"$event\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"tmux-claude-agent-tracker hook $event\"}]}]"
+            hooks_json+="\"$event\":[{\"matcher\":\"\",\"hooks\":[{\"type\":\"command\",\"command\":\"tmux-agent-tracker hook $event\"}]}]"
         done
         hooks_json+="}}"
 
@@ -399,7 +474,7 @@ install_pi_hooks() {
     fi
 
     for event in "${PI_EVENTS[@]}"; do
-        local cmd="tmux-claude-agent-tracker hook $event"
+        local cmd="tmux-agent-tracker hook $event"
 
         # Check if this exact command already exists under this event
         if jq -e --arg event "$event" --arg cmd "$cmd" '
@@ -435,13 +510,13 @@ _print_manual_codex_notify() {
 
 Add this to ~/.codex/config.toml:
 
-notify = ["tmux-claude-agent-tracker", "codex-notify"]
+notify = ["tmux-agent-tracker", "codex-notify"]
 
 MANUAL_CODEX
 }
 
 install_codex_notify() {
-    local notify_line='notify = ["tmux-claude-agent-tracker", "codex-notify"]'
+    local notify_line='notify = ["tmux-agent-tracker", "codex-notify"]'
     mkdir -p "$(dirname "$CODEX_CONFIG")"
 
     _has_global_notify() {
@@ -469,7 +544,7 @@ install_codex_notify() {
 
     if [[ ! -f "$CODEX_CONFIG" ]]; then
         {
-            echo "# tmux-claude-agent-tracker"
+            echo "# tmux-agent-tracker"
             echo "$notify_line"
         } > "$CODEX_CONFIG"
         echo "codex: created $CODEX_CONFIG with notify hook"
@@ -487,15 +562,15 @@ install_codex_notify() {
     fi
 
     # migrate a previously appended notify line from table scope to top-level
-    if grep -Fq '"tmux-claude-agent-tracker", "codex-notify"' "$CODEX_CONFIG"; then
+    if grep -Fq '"tmux-agent-tracker", "codex-notify"' "$CODEX_CONFIG"; then
         local tmp
         tmp=$(mktemp)
         sed \
-            -e '/^[[:space:]]*# tmux-claude-agent-tracker[[:space:]]*$/d' \
-            -e '/"tmux-claude-agent-tracker",[[:space:]]*"codex-notify"/d' \
+            -e '/^[[:space:]]*# tmux-agent-tracker[[:space:]]*$/d' \
+            -e '/"tmux-agent-tracker",[[:space:]]*"codex-notify"/d' \
             "$CODEX_CONFIG" > "$tmp"
         {
-            echo "# tmux-claude-agent-tracker"
+            echo "# tmux-agent-tracker"
             echo "$notify_line"
             echo ""
             cat "$tmp"
@@ -507,7 +582,7 @@ install_codex_notify() {
     fi
 
     {
-        echo "# tmux-claude-agent-tracker"
+        echo "# tmux-agent-tracker"
         echo "$notify_line"
         echo ""
         cat "$CODEX_CONFIG"

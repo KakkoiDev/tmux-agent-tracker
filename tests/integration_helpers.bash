@@ -61,7 +61,7 @@ WRAPPER
         bash "$TRACKER_SH" init >/dev/null 2>&1
 
     # Leak guard: snapshot production DB session count
-    local prod_db="$HOME/.tmux-claude-agent-tracker/tracker.db"
+    local prod_db="$HOME/.tmux-agent-tracker/tracker.db"
     if [[ -f "$prod_db" ]]; then
         PROD_SESSION_COUNT=$(sqlite3 "$prod_db" "SELECT COUNT(*) FROM sessions;" 2>/dev/null || echo "-1")
     else
@@ -72,7 +72,7 @@ WRAPPER
 
 teardown_integration() {
     # Leak guard: assert production DB wasn't modified
-    local prod_db="$HOME/.tmux-claude-agent-tracker/tracker.db"
+    local prod_db="$HOME/.tmux-agent-tracker/tracker.db"
     if [[ "${PROD_SESSION_COUNT:-}" != "-1" && -f "$prod_db" ]]; then
         local after
         after=$(sqlite3 "$prod_db" "SELECT COUNT(*) FROM sessions;" 2>/dev/null || echo "-1")

@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook SessionStart"
+            "command": "tmux-agent-tracker hook SessionStart"
           }
         ]
       }
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook UserPromptSubmit"
+            "command": "tmux-agent-tracker hook UserPromptSubmit"
           }
         ]
       }
@@ -31,7 +31,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook PostToolUse"
+            "command": "tmux-agent-tracker hook PostToolUse"
           }
         ]
       }
@@ -42,7 +42,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook PostToolUseFailure"
+            "command": "tmux-agent-tracker hook PostToolUseFailure"
           }
         ]
       }
@@ -53,7 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook Stop"
+            "command": "tmux-agent-tracker hook Stop"
           }
         ]
       }
@@ -64,7 +64,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "tmux-claude-agent-tracker hook SessionEnd"
+            "command": "tmux-agent-tracker hook SessionEnd"
           }
         ]
       }
