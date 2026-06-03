@@ -83,8 +83,9 @@ _RENDER_SQL="SELECT
     COALESCE(SUM(CASE WHEN status='blocked' THEN 1 ELSE 0 END),0) || '|' ||
     COALESCE(SUM(CASE WHEN status='idle' THEN 1 ELSE 0 END),0) || '|' ||
     COALESCE(SUM(CASE WHEN status='completed' AND task_count > 0 THEN task_count WHEN status='completed' THEN 1 ELSE 0 END),0) || '|' ||
-    COALESCE((SELECT (unixepoch()-MIN(updated_at))/60 FROM sessions WHERE status='blocked' AND COALESCE(agent_type,'')=''),0)
-    FROM sessions WHERE COALESCE(agent_type,'')=''"
+    COALESCE((SELECT (unixepoch()-MIN(updated_at))/60 FROM sessions
+              WHERE status='blocked' AND COALESCE(agent_type,'')='' AND parent_session_id IS NULL),0)
+    FROM sessions WHERE COALESCE(agent_type,'')='' AND parent_session_id IS NULL"
 
 _tmux() {
     [[ "$_SANDBOX" -eq 1 ]] && return 0
@@ -108,8 +109,14 @@ _ensure_schema() {
         touch "$TRACKER_DIR/.schema_v2"
     fi
     if [[ ! -f "$TRACKER_DIR/.schema_v3" ]]; then
-        sql "ALTER TABLE sessions ADD COLUMN agent_client TEXT NOT NULL DEFAULT 'claude';" 2>/dev/null || true
+        # parent_session_id links subagent sessions to their parent agent session
+        # Used to exclude subagents from status bar counts
+        sql "ALTER TABLE sessions ADD COLUMN parent_session_id TEXT;" 2>/dev/null || true
         touch "$TRACKER_DIR/.schema_v3"
+    fi
+    if [[ ! -f "$TRACKER_DIR/.schema_v4" ]]; then
+        sql "ALTER TABLE sessions ADD COLUMN agent_client TEXT NOT NULL DEFAULT 'claude';" 2>/dev/null || true
+        touch "$TRACKER_DIR/.schema_v4"
     fi
 }
 
@@ -151,6 +158,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     agent_type    TEXT,
     task_count    INTEGER NOT NULL DEFAULT 0,
     subagent_count INTEGER NOT NULL DEFAULT 0,
+    parent_session_id TEXT,
     agent_client  TEXT NOT NULL DEFAULT 'claude',
     tmux_pane     TEXT,
     tmux_target   TEXT,
@@ -180,6 +188,7 @@ CREATE TABLE sessions (
     agent_type    TEXT,
     task_count    INTEGER NOT NULL DEFAULT 0,
     subagent_count INTEGER NOT NULL DEFAULT 0,
+    parent_session_id TEXT,
     agent_client  TEXT NOT NULL DEFAULT 'claude',
     tmux_pane     TEXT,
     tmux_target   TEXT,
@@ -243,13 +252,22 @@ cmd_hook() {
             _agent_type=$(_json_val "$json" "agent_type")
             sql "UPDATE sessions SET subagent_count = subagent_count + 1
                  WHERE session_id='$sid';"
-            _debug_log "subagent_start parent=$sid agent_id=$_agent_id agent_type=$_agent_type"
+            # Mark the subagent's session as child of this parent
+            if [[ -n "$_agent_id" ]]; then
+                sql "INSERT OR IGNORE INTO sessions (session_id, parent_session_id, status, updated_at)
+                     VALUES ('$(sql_esc "$_agent_id")', '$(sql_esc "$sid")', 'idle', unixepoch());"
+            fi
             __changed=0 ;;
         SubagentStop)
             local _agent_id _agent_type
             _agent_id=$(_json_val "$json" "agent_id")
             _agent_type=$(_json_val "$json" "agent_type")
             _hook_subagent_stop "$sid"
+            # Clear parent link so subagent row is counted independently
+            if [[ -n "$_agent_id" ]]; then
+                sql "UPDATE sessions SET parent_session_id=NULL
+                     WHERE session_id='$(sql_esc "$_agent_id")';"
+            fi
             _debug_log "subagent_stop parent=$sid agent_id=$_agent_id agent_type=$_agent_type" ;;
         *) return 0 ;;
     esac
@@ -655,15 +673,15 @@ _render_cache() {
         COALESCE(SUM(CASE WHEN status='idle' THEN 1 ELSE 0 END),0),
         COALESCE(SUM(CASE WHEN status='completed' AND task_count > 0 THEN task_count WHEN status='completed' THEN 1 ELSE 0 END),0),
         COALESCE((SELECT (unixepoch()-MIN(updated_at))/60 FROM sessions
-                  WHERE status='blocked' AND COALESCE(agent_type,'')=''),0)
-        FROM sessions WHERE COALESCE(agent_type,'')='';") || return 0
+                  WHERE status='blocked' AND COALESCE(agent_type,'')='' AND parent_session_id IS NULL),0)
+        FROM sessions WHERE COALESCE(agent_type,'')='' AND parent_session_id IS NULL;") || return 0
     [[ -z "$counts" ]] && counts="0|0|0|0|0"
     _debug_log "render counts=$counts"
 
     local project=""
     if [[ "${SHOW_PROJECT:-0}" == "1" ]]; then
         project=$(sql "SELECT project_name FROM sessions
-                       WHERE COALESCE(agent_type,'')=''
+                       WHERE COALESCE(agent_type,'')='' AND parent_session_id IS NULL
                        ORDER BY CASE WHEN status='blocked' THEN 0 ELSE 1 END,
                                 updated_at DESC LIMIT 1;" 2>/dev/null || true)
     fi
