@@ -14,7 +14,7 @@ Error: UserPromptSubmit 失败 (exit 127): bash: tmux-agent-tracker: command not
 ```
 
 ```
-entering tmux → '/Users/cyril.antoni/Code/tmux-claude-agent-tracker/scripts/tracker.sh pane-focus %7' returned 127
+entering tmux → '$HOME/Code/tmux-claude-agent-tracker/scripts/tracker.sh pane-focus %7' returned 127
 ```
 
 ---
@@ -30,13 +30,13 @@ The project was renamed from `tmux-claude-agent-tracker` to `tmux-agent-tracker`
 ### 1. `~/.tmux.conf` — Stale run-shell path
 
 ```
-run-shell '/Users/cyril.antoni/Code/tmux-claude-agent-tracker/agent-tracker.tmux'
+run-shell '$HOME/Code/tmux-claude-agent-tracker/agent-tracker.tmux'
 ```
 
 Fix: change to the new path.
 
 ```
-run-shell '/Users/cyril.antoni/Code/tmux-agent-tracker/agent-tracker.tmux'
+run-shell '$HOME/Code/tmux-agent-tracker/agent-tracker.tmux'
 ```
 
 **Why:** tmux loads this config on startup. The old directory doesn't exist → exit 127.
@@ -102,7 +102,7 @@ After fixes, run:
 ```bash
 # Test CLI is in PATH (installed to ~/.local/bin)
 which tmux-agent-tracker
-# → /Users/cyril.antoni/.local/bin/tmux-agent-tracker
+# → $HOME/.local/bin/tmux-agent-tracker
 
 # Test it works
 tmux-agent-tracker init
