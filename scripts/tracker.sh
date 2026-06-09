@@ -222,7 +222,7 @@ cmd_hook() {
     _debug_log "HOOK $event sid=$raw_sid client=$(_session_client "$raw_sid")"
 
     # _ensure_session only for session-creating hooks.
-    # Hot-path hooks (PostToolUse, PostToolUseFailure, Notification, PermissionRequest, Stop, TeammateIdle) skip this
+    # Hot-path hooks (PostToolUse, PostToolUseFailure, Notification, PermissionRequest, Stop, StopFailure, Elicitation, ElicitationResult, TeammateIdle) skip this
     # - their UPDATEs are no-ops if session doesn't exist yet.
     # SessionStart creates as idle; UserPromptSubmit creates as working.
     case "$event" in
@@ -241,8 +241,11 @@ cmd_hook() {
         PostToolUse)      _hook_post_tool "$sid" ;;
         PostToolUseFailure) _hook_post_tool "$sid" ;;
         Stop)             _hook_stop "$sid" ;;
+        StopFailure)      _hook_stop "$sid" ;;
         Notification)     _hook_notification "$sid" ;;
         PermissionRequest) _hook_permission_request "$sid" ;;
+        Elicitation)      _hook_permission_request "$sid" ;;
+        ElicitationResult) _hook_post_tool "$sid" ;;
         TaskCompleted)    _hook_task_completed "$sid" ;;
         SessionEnd)       sql "DELETE FROM sessions WHERE session_id='$sid';" ;;
         TeammateIdle)     _hook_teammate_idle "$json" ;;
@@ -301,15 +304,15 @@ cmd_hook() {
                 _hook_new_status="working"
                 _hook_sid="$sid"
                 ;;
-            PostToolUse|PostToolUseFailure)
+            PostToolUse|PostToolUseFailure|ElicitationResult)
                 _hook_new_status="working"
                 _hook_sid="$sid"
                 ;;
-            Stop)
+            Stop|StopFailure)
                 _hook_new_status="completed"
                 _hook_sid="$sid"
                 ;;
-            Notification|PermissionRequest)
+            Notification|PermissionRequest|Elicitation)
                 _hook_new_status="blocked"
                 _hook_sid="$sid"
                 ;;

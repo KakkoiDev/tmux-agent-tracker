@@ -43,11 +43,11 @@ stateDiagram-v2
     [*] --> idle : SessionStart
 
     idle --> working : UserPromptSubmit / PostToolUse
-    working --> completed : Stop
-    working --> blocked : Notification (permission/elicitation)
+    working --> completed : Stop / StopFailure
+    working --> blocked : Notification / PermissionRequest / Elicitation
 
-    blocked --> working : UserPromptSubmit / PostToolUse / PostToolUseFailure
-    blocked --> completed : Stop
+    blocked --> working : UserPromptSubmit / PostToolUse / PostToolUseFailure / ElicitationResult
+    blocked --> completed : Stop / StopFailure
 
     completed --> idle : goto / navigation hooks
     completed --> working : UserPromptSubmit / PostToolUse
@@ -60,10 +60,10 @@ stateDiagram-v2
 
 Transition guards:
 - `SessionStart` -> idle (INSERT OR IGNORE, no-op if session exists)
-- `Stop` -> completed (`WHERE status IN ('working', 'blocked')`, no-op on idle/completed; auto-cleared to idle on next refresh if user is viewing the pane)
+- `Stop` / `StopFailure` -> completed (`WHERE status IN ('working', 'blocked')`, no-op on idle/completed; auto-cleared to idle on next refresh if user is viewing the pane). `StopFailure` fires on an API-error turn end (where `Stop` does not fire) and routes identically, preventing a session pinned at `working`.
 - `UserPromptSubmit` -> working (unconditional, handles idle/completed/blocked->working)
-- `PostToolUse` / `PostToolUseFailure` -> working (`WHERE status!='working'`, no-op when already working)
-- `Notification` -> blocked (`WHERE status = 'working'`, only from working state; `permission_prompt` or `elicitation_dialog` only)
+- `PostToolUse` / `PostToolUseFailure` / `ElicitationResult` -> working (`WHERE status!='working'`, no-op when already working). `ElicitationResult` is the precise unblock signal after an MCP elicitation is answered.
+- `Notification` / `PermissionRequest` / `Elicitation` -> blocked (`WHERE status = 'working'`, only from working state). `Notification` matches `permission_prompt`/`elicitation_dialog` (4-41s upstream delay); `PermissionRequest` (tool permission) and `Elicitation` (MCP input request) fire immediately.
 - `goto` -> idle (`WHERE status='completed'`, clears completed when user focuses pane via menu)
 - `session-window-changed` / `window-pane-changed` -> idle (`WHERE status='completed' AND tmux_pane=<focused_pane>`, clears completed when user navigates to pane)
 

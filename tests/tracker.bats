@@ -164,6 +164,45 @@ teardown() {
     [[ "$(get_status s1)" == "completed" ]]
 }
 
+# ── StopFailure / Elicitation dispatch (new events, routed via cmd_hook) ──
+
+@test "StopFailure sets working to completed" {
+    insert_session "s1" "working" "%1"
+    echo '{"session_id":"s1"}' | cmd_hook StopFailure
+    [[ "$(get_status s1)" == "completed" ]]
+}
+
+@test "StopFailure sets blocked to completed" {
+    insert_session "s1" "blocked" "%1"
+    echo '{"session_id":"s1"}' | cmd_hook StopFailure
+    [[ "$(get_status s1)" == "completed" ]]
+}
+
+@test "StopFailure skips completed when subagents are active" {
+    insert_session "s1" "working" "%1"
+    sql "UPDATE sessions SET subagent_count=2 WHERE session_id='s1';"
+    echo '{"session_id":"s1"}' | cmd_hook StopFailure
+    [[ "$(get_status s1)" == "working" ]]
+}
+
+@test "Elicitation sets working to blocked" {
+    insert_session "s1" "working" "%1"
+    echo '{"session_id":"s1"}' | cmd_hook Elicitation
+    [[ "$(get_status s1)" == "blocked" ]]
+}
+
+@test "Elicitation no-op when idle" {
+    insert_session "s1" "idle" "%1"
+    echo '{"session_id":"s1"}' | cmd_hook Elicitation
+    [[ "$(get_status s1)" == "idle" ]]
+}
+
+@test "ElicitationResult sets blocked to working" {
+    insert_session "s1" "blocked" "%1"
+    echo '{"session_id":"s1"}' | cmd_hook ElicitationResult
+    [[ "$(get_status s1)" == "working" ]]
+}
+
 @test "SubagentStop decrements subagent count" {
     insert_session "s1" "working" "%1"
     sql "UPDATE sessions SET subagent_count=3 WHERE session_id='s1';"

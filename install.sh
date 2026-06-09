@@ -152,7 +152,8 @@ fi  # end !HOOKS_ONLY
 
 TRACKER_EVENTS=(
     SessionStart SessionEnd UserPromptSubmit
-    PostToolUse PostToolUseFailure Stop Notification PermissionRequest
+    PostToolUse PostToolUseFailure Stop StopFailure Notification PermissionRequest
+    Elicitation ElicitationResult
     TaskCompleted
 )
 # Notification must match only permission_prompt or elicitation_dialog (user attention needed)
@@ -176,8 +177,11 @@ Add the following to ~/.claude/settings.json under "hooks":
     "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }],
     "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUseFailure" }] }],
     "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "StopFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook StopFailure" }] }],
     "Notification": [{ "matcher": "permission_prompt|elicitation_dialog", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Notification" }] }],
     "PermissionRequest": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PermissionRequest" }] }],
+    "Elicitation": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Elicitation" }] }],
+    "ElicitationResult": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook ElicitationResult" }] }],
     "TaskCompleted": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook TaskCompleted" }] }]
   }
 }

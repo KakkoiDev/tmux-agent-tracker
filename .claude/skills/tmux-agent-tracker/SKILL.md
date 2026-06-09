@@ -23,8 +23,12 @@ SessionStart --> idle
 UserPromptSubmit --> working
 PostToolUse --> working (if blocked/idle)
 PostToolUseFailure --> working (if blocked)
+ElicitationResult --> working (if blocked)   # precise MCP-elicitation unblock
 Notification(permission_prompt|elicitation_dialog) --> blocked (if working)
+PermissionRequest --> blocked (if working)    # immediate tool-permission block
+Elicitation --> blocked (if working)          # immediate MCP-input block
 Stop --> completed (if working/blocked)
+StopFailure --> completed (if working/blocked) # API-error turn end (Stop does not fire)
 SessionEnd --> [deleted]
 pane-focus --> idle (if completed, on focused pane)
 ```
@@ -109,10 +113,19 @@ These hooks must be in `~/.claude/settings.json`. The `install.sh` script config
 | `UserPromptSubmit` | `""` | Set working |
 | `PostToolUse` | `""` | Set working (clears blocked) |
 | `PostToolUseFailure` | `""` | Set working (clears stuck blocked) |
+| `ElicitationResult` | `""` | Set working (precise MCP-elicitation unblock) |
 | `Stop` | `""` | Set completed |
+| `StopFailure` | `""` | Set completed (API-error turn end) |
 | `Notification` | `"permission_prompt\|elicitation_dialog"` | Set blocked |
+| `PermissionRequest` | `""` | Set blocked (immediate tool permission) |
+| `Elicitation` | `""` | Set blocked (immediate MCP input request) |
+| `TaskCompleted` | `""` | Increment task count |
 
 **Why `PostToolUseFailure`?** Claude Code's `Stop` hook does not fire on user interrupt. If a user rejects a permission prompt, the session stays stuck at `blocked`. `PostToolUseFailure` clears it.
+
+**Why `StopFailure`?** On an API-error turn end, Claude Code fires `StopFailure` instead of `Stop`. Without handling it, the agent process stays alive (so reap won't clean it) and the session is pinned at `working` until the next prompt. Routed identically to `Stop`.
+
+**Why `Elicitation`/`ElicitationResult`?** MCP servers requesting input are caught by the `Notification` matcher (`elicitation_dialog`) with a 4-41s delay. The dedicated `Elicitation` event blocks immediately, and `ElicitationResult` gives a precise unblock signal (which tool permissions never provide).
 
 **Why the Notification matcher?** The `Notification` hook fires for `permission_prompt`, `elicitation_dialog`, `idle_prompt`, `auth_success`. Only the first two mean Claude is waiting for user input.
 

@@ -184,8 +184,11 @@ Claude (`~/.claude/settings.json`):
     "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }],
     "PostToolUseFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUseFailure" }] }],
     "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "StopFailure": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook StopFailure" }] }],
     "Notification": [{ "matcher": "permission_prompt|elicitation_dialog", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Notification" }] }],
     "PermissionRequest": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PermissionRequest" }] }],
+    "Elicitation": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Elicitation" }] }],
+    "ElicitationResult": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook ElicitationResult" }] }],
     "TaskCompleted": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook TaskCompleted" }] }]
   }
 }
