@@ -90,6 +90,10 @@ source_tracker_functions() {
     get_tmux_option() { echo "${2:-}"; }
     tmux() { true; }
     git() { true; }
+    # Agent-detection helpers live in helpers.sh, which is not sourced here.
+    # Tests asserting a specific client/process state override these locally.
+    _has_agent_child() { return 0; }
+    _agent_client_type() { echo "claude"; }
     # Platform helper needed by throttle logic
     _file_mtime() {
         case "$(uname)" in
