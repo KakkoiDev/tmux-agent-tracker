@@ -622,6 +622,7 @@ _load_config_fast() {
         ICON_IDLE="."; ICON_WORKING="*"
         ICON_COMPLETED="+"; ICON_BLOCKED="!"
         COMPLETED_DELAY=3; DEBUG_LOG=0; _HAS_HOOKS=0
+        MAX_NAME_LENGTH=40
         return 0
     fi
     local _cc="$TRACKER_DIR/config_cache"
@@ -834,8 +835,13 @@ cmd_menu() {
             *)         icon="${ICON_IDLE:-.}" ;;
         esac
 
-        label="${icon} [${client}] ${project}"
-        [[ -n "$branch" ]] && label+="/${branch}"
+        local name="${project}"
+        [[ -n "$branch" ]] && name+="/${branch}"
+        local max="${MAX_NAME_LENGTH:-40}"
+        if [[ "$max" -gt 0 && "${#name}" -gt "$max" ]]; then
+            name="${name:0:$((max - 1))}…"
+        fi
+        label="${icon} [${client}] ${name}"
 
         if [[ -n "$target" ]]; then
             args+=("$label" "" "run-shell '$SCRIPTS_DIR/tracker.sh goto ${target}'")

@@ -120,6 +120,7 @@ load_config() {
     COLOR_IDLE=$(get_tmux_option "@agent-tracker-color-idle" "black")
     COLOR_COMPLETED=$(get_tmux_option "@agent-tracker-color-completed" "black")
     SHOW_PROJECT=$(get_tmux_option "@agent-tracker-show-project" "0")
+    MAX_NAME_LENGTH=$(get_tmux_option "@agent-tracker-max-name-length" "40")
     ICON_IDLE=$(get_tmux_option "@agent-tracker-icon-idle" ".")
     ICON_WORKING=$(get_tmux_option "@agent-tracker-icon-working" "*")
     ICON_COMPLETED=$(get_tmux_option "@agent-tracker-icon-completed" "+")
@@ -149,6 +150,7 @@ COLOR_BLOCKED='$COLOR_BLOCKED'
 COLOR_IDLE='$COLOR_IDLE'
 COLOR_COMPLETED='$COLOR_COMPLETED'
 SHOW_PROJECT='$SHOW_PROJECT'
+MAX_NAME_LENGTH='$MAX_NAME_LENGTH'
 ICON_IDLE='$ICON_IDLE'
 ICON_WORKING='$ICON_WORKING'
 ICON_COMPLETED='$ICON_COMPLETED'

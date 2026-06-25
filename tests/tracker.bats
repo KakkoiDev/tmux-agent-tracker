@@ -1632,6 +1632,57 @@ SCRIPT
     [[ "$_menu_capture" == *"[codex] test"* ]]
 }
 
+@test "cmd_menu truncates long names with an ellipsis" {
+    local long="aproject-with-an-absurdly-long-name-for-testing-truncation"
+    insert_session "c1" "working" "%1"
+    sql "UPDATE sessions SET project_name='$long', tmux_target='test:0.0' WHERE session_id='c1';"
+    export MAX_NAME_LENGTH=40
+    local _menu_capture=""
+    tmux() {
+        if [[ "${1:-}" == "display-menu" ]]; then
+            _menu_capture="$*"
+        fi
+        true
+    }
+    cmd_menu 1
+    [[ "$_menu_capture" == *"…"* ]] &&
+        [[ "$_menu_capture" != *"$long"* ]] &&
+        [[ "$_menu_capture" == *"[claude] aproject-with-an-absurdly"* ]]
+}
+
+@test "cmd_menu leaves short names untruncated" {
+    insert_session "c1" "working" "%1"
+    sql "UPDATE sessions SET tmux_target='test:0.0' WHERE session_id='c1';"
+    export MAX_NAME_LENGTH=40
+    local _menu_capture=""
+    tmux() {
+        if [[ "${1:-}" == "display-menu" ]]; then
+            _menu_capture="$*"
+        fi
+        true
+    }
+    cmd_menu 1
+    [[ "$_menu_capture" != *"…"* ]] &&
+        [[ "$_menu_capture" == *"[claude] test"* ]]
+}
+
+@test "cmd_menu max-name-length 0 disables truncation" {
+    local long="aproject-with-an-absurdly-long-name-for-testing-truncation"
+    insert_session "c1" "working" "%1"
+    sql "UPDATE sessions SET project_name='$long', tmux_target='test:0.0' WHERE session_id='c1';"
+    export MAX_NAME_LENGTH=0
+    local _menu_capture=""
+    tmux() {
+        if [[ "${1:-}" == "display-menu" ]]; then
+            _menu_capture="$*"
+        fi
+        true
+    }
+    cmd_menu 1
+    [[ "$_menu_capture" != *"…"* ]] &&
+        [[ "$_menu_capture" == *"$long"* ]]
+}
+
 @test "cmd_codex_notify marks completed and tags codex client" {
     insert_session "s1" "working" "%1"
     cmd_codex_notify "codex-notify" '{"session_id":"s1","type":"agent-turn-complete","cwd":"/tmp/test"}'

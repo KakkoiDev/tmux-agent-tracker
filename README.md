@@ -248,6 +248,7 @@ Set in `~/.tmux.conf`:
 | `@agent-tracker-key-prev` | `o` | Previous page |
 | `@agent-tracker-key-quit` | `q` | Quit menu |
 | `@agent-tracker-show-project` | `0` | `1` to show project name |
+| `@agent-tracker-max-name-length` | `40` | Truncate long menu names with `…` (`0` to disable) |
 | `@agent-tracker-status-interval` | `60` | Blocked timer refresh (seconds) |
 | `@agent-tracker-completed-delay` | `3` | Seconds to show completed before auto-clear (`0` to disable) |
 
