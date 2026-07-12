@@ -11,7 +11,7 @@ ensure_tmux_version || exit 1
 load_config
 
 # Init DB if needed
-"$SCRIPTS_DIR/tracker.sh" init 2>/dev/null
+"$SCRIPTS_DIR/tracker.sh" init >/dev/null 2>&1
 
 # ── Idempotent CLI + skill setup (TPM auto-provisioning) ─────────────
 _link_if_stale() {
