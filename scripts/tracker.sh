@@ -813,7 +813,7 @@ cmd_menu() {
 
     local rows
     rows=$(sql_sep '|' "SELECT session_id, status, project_name,
-               COALESCE(git_branch,''), COALESCE(tmux_target,''), COALESCE(agent_client,'claude')
+               COALESCE(git_branch,''), COALESCE(tmux_pane,''), COALESCE(agent_client,'claude')
         FROM sessions
         WHERE COALESCE(agent_type,'')=''
         ORDER BY CASE status
@@ -825,7 +825,7 @@ cmd_menu() {
     [[ "$total_pages" -gt 1 ]] && title="AI Agents ($page/$total_pages)"
 
     local args=(-T "$title")
-    while IFS='|' read -r _sid status project branch target client; do
+    while IFS='|' read -r _sid status project branch pane client; do
         [[ -z "$_sid" ]] && continue
         local icon label
         case "$status" in
@@ -843,8 +843,8 @@ cmd_menu() {
         fi
         label="${icon} [${client}] ${name}"
 
-        if [[ -n "$target" ]]; then
-            args+=("$label" "" "run-shell '$SCRIPTS_DIR/tracker.sh goto ${target}'")
+        if [[ -n "$pane" ]]; then
+            args+=("$label" "" "run-shell '$SCRIPTS_DIR/tracker.sh goto-pane ${pane}'")
         else
             args+=("$label" "" "")
         fi
@@ -1032,6 +1032,45 @@ cmd_goto() {
     tmux refresh-client -S 2>/dev/null || true
 }
 
+# ── goto-pane (rename-safe: resolve target from stable pane id) ─────────
+
+cmd_goto_pane() {
+    local pane="$1"
+    [[ -z "$pane" ]] && return 0
+    # Resolve the current target from the stable pane id at click time, so a
+    # session rename between registration and now cannot send us to a dead name.
+    local target
+    target=$(tmux display-message -t "$pane" \
+        -p '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null || true)
+    if [[ -z "$target" ]]; then
+        tmux display-message "Agent pane no longer exists" 2>/dev/null || true
+        return 0
+    fi
+    local sess="${target%%:*}" win="${target%.*}"
+    tmux switch-client -t "$sess" 2>/dev/null || true
+    tmux select-window -t "$win" 2>/dev/null || true
+    tmux select-pane -t "$target" 2>/dev/null || true
+    # Clear completed→idle keyed on the stable pane id (mirrors cmd_pane_focus).
+    local _gp_sids
+    _gp_sids=$(sql "SELECT session_id FROM sessions
+         WHERE tmux_pane='$(sql_esc "$pane")' AND status='completed';") || true
+    if [[ -n "$_gp_sids" ]]; then
+        _load_config_fast
+        _debug_log "goto_pane pane=$pane target=$target via=menu"
+        sql "UPDATE sessions SET status='idle', updated_at=unixepoch()
+             WHERE tmux_pane='$(sql_esc "$pane")' AND status='completed';" 2>/dev/null || true
+        while IFS= read -r _gpsid; do
+            [[ -z "$_gpsid" ]] && continue
+            local _gpproj _gpsum
+            _gpproj=$(sql "SELECT project_name FROM sessions WHERE session_id='$(sql_esc "$_gpsid")';") || true
+            _gpsum=$(sql "SELECT prompt_summary FROM sessions WHERE session_id='$(sql_esc "$_gpsid")';") || true
+            _fire_transition_hook "completed" "idle" "$_gpsid" "$_gpproj" "$_gpsum"
+        done <<< "$_gp_sids"
+    fi
+    _render_cache 2>/dev/null || true
+    tmux refresh-client -S 2>/dev/null || true
+}
+
 # ── pane-focus ────────────────────────────────────────────────────────
 
 cmd_pane_focus() {
@@ -1084,11 +1123,12 @@ case "${1:-}" in
     refresh)    cmd_refresh ;;
     menu)       tmux display-message "Opening..." 2>/dev/null || true; _reap_dead 2>/dev/null || true; cmd_scan 2>/dev/null || true; cmd_menu "${2:-1}" ;;
     goto)       cmd_goto "${2:?Usage: tracker.sh goto <target>}" ;;
+    goto-pane)  cmd_goto_pane "${2:?Usage: tracker.sh goto-pane <pane_id>}" ;;
     pane-focus) cmd_pane_focus "${2:?Usage: tracker.sh pane-focus <pane_id>}" ;;
     pane-focus-if-active) cmd_pane_focus_if_active "${2:?Usage: tracker.sh pane-focus-if-active <pane_id>}" ;;
     scan)       cmd_scan ;;
     cleanup)    cmd_cleanup ;;
     merge-sandbox) cmd_merge_sandbox ;;
-    *)          echo "Usage: tracker.sh {init|hook|codex-notify|status-bar|refresh|menu|scan|cleanup|merge-sandbox|goto|pane-focus}" >&2
+    *)          echo "Usage: tracker.sh {init|hook|codex-notify|status-bar|refresh|menu|scan|cleanup|merge-sandbox|goto|goto-pane|pane-focus}" >&2
                 exit 1 ;;
 esac

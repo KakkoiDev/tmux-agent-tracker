@@ -1254,6 +1254,36 @@ _integration_mock() {
     [[ "$(get_status s1)" == "working" ]]
 }
 
+@test "goto-pane navigates using live name from stable pane id after rename" {
+    # Session registered as 'oldsess', then the tmux session was renamed to
+    # 'newsess'. tmux_pane (%7) is stable; tmux_target is now STALE.
+    insert_session "s1" "completed" "%7"
+    sql "UPDATE sessions SET tmux_target='oldsess:0.0' WHERE session_id='s1';"
+
+    # Mock tmux: display-message on the pane returns the CURRENT (renamed)
+    # target; capture the navigation commands.
+    _nav=""
+    tmux() {
+        case "$1" in
+            display-message) echo "newsess:2.1" ;;
+            switch-client|select-window|select-pane) _nav+="$* " ;;
+            *) true ;;
+        esac
+    }
+
+    cmd_goto_pane "%7"
+
+    # Navigation must target the LIVE name resolved from the pane, never the
+    # stale DB target.
+    [[ "$_nav" == *"switch-client -t newsess"* ]]
+    [[ "$_nav" == *"select-window -t newsess:2"* ]]
+    [[ "$_nav" == *"select-pane -t newsess:2.1"* ]]
+    [[ "$_nav" != *"oldsess"* ]]
+
+    # And the completed→idle clear still happens, keyed on the stable pane.
+    [[ "$(get_status s1)" == "idle" ]]
+}
+
 @test "completed → UserPromptSubmit → working" {
     insert_session "s1" "completed" "%1"
     _hook_prompt "s1"
