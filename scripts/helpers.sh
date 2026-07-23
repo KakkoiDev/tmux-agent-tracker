@@ -29,14 +29,16 @@ _has_agent_child() {
     local shell_pid="$1"
     case "$(uname)" in
         Darwin)
-            ps -eo ppid,comm | awk -v p="$shell_pid" '$1 == p && ($2 == "claude" || $2 == "codex" || $2 == "gemini" || $2 == "deer" || $2 == "deerbox" || $2 == "pi")' | grep -q . ;;
+            ps -eo ppid,comm | awk -v p="$shell_pid" '$1 == p && ($2 == "claude" || $2 == "codex" || $2 == "gemini" || $2 == "deer" || $2 == "deerbox" || $2 == "pi" || $2 == "agy" || $2 == "antigravity")' | grep -q . ;;
         *)
             pgrep -P "$shell_pid" -x "claude" >/dev/null 2>/dev/null || \
             pgrep -P "$shell_pid" -x "codex" >/dev/null 2>/dev/null || \
             pgrep -P "$shell_pid" -x "gemini" >/dev/null 2>/dev/null || \
             pgrep -P "$shell_pid" -x "deer" >/dev/null 2>/dev/null || \
             pgrep -P "$shell_pid" -x "deerbox" >/dev/null 2>/dev/null || \
-            pgrep -P "$shell_pid" -x "pi" >/dev/null 2>/dev/null ;;
+            pgrep -P "$shell_pid" -x "pi" >/dev/null 2>/dev/null || \
+            pgrep -P "$shell_pid" -x "agy" >/dev/null 2>/dev/null || \
+            pgrep -P "$shell_pid" -x "antigravity" >/dev/null 2>/dev/null ;;
     esac
 }
 
@@ -48,16 +50,17 @@ _agent_client_type() {
     case "$(uname)" in
         Darwin)
             child_comm=$(ps -eo ppid,comm | awk -v p="$shell_pid" \
-                '$1 == p && ($2 == "claude" || $2 == "codex" || $2 == "gemini" || $2 == "deer" || $2 == "deerbox" || $2 == "pi") { print $2; exit }') ;;
+                '$1 == p && ($2 == "claude" || $2 == "codex" || $2 == "gemini" || $2 == "deer" || $2 == "deerbox" || $2 == "pi" || $2 == "agy" || $2 == "antigravity") { print $2; exit }') ;;
         *)
             child_comm=$(ps -eo ppid,comm | awk -v p="$shell_pid" \
-                '$1 == p && ($2 == "claude" || $2 == "codex" || $2 == "gemini" || $2 == "deer" || $2 == "deerbox" || $2 == "pi") { print $2; exit }') ;;
+                '$1 == p && ($2 == "claude" || $2 == "codex" || $2 == "gemini" || $2 == "deer" || $2 == "deerbox" || $2 == "pi" || $2 == "agy" || $2 == "antigravity") { print $2; exit }') ;;
     esac
     case "$child_comm" in
         deer|deerbox) echo "deer" ;;
         codex) echo "codex" ;;
         gemini) echo "gemini" ;;
         pi) echo "pi" ;;
+        agy|antigravity) echo "antigravity" ;;
         *) echo "claude" ;;
     esac
 }

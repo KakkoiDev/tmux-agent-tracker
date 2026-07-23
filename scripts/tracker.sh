@@ -216,6 +216,8 @@ cmd_hook() {
 
     local sid raw_sid
     raw_sid=$(_json_val "$json" "session_id")
+    [[ -z "$raw_sid" ]] && raw_sid=$(_json_val "$json" "conversationId")
+    [[ -z "$raw_sid" ]] && raw_sid=$(_json_val "$json" "conversation_id")
     [[ -z "$raw_sid" ]] && return 0
     sid=$(sql_esc "$raw_sid")
 

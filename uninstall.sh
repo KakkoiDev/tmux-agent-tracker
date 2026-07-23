@@ -22,6 +22,7 @@ echo "  - tmux.conf plugin line"
 echo "  - Claude Code hooks (settings.json)"
 echo "  - Gemini CLI hooks (~/.gemini/settings.json)"
 echo "  - Pi hooks (~/.pi/agent/settings.json)"
+echo "  - Antigravity hooks (~/.gemini/config/hooks.json)"
 echo "  - Codex notify hook (~/.codex/config.toml)"
 echo "  - Skill folders (~/.claude/skills and ~/.codex/skills)"
 echo "  - Data directory (~/.tmux-agent-tracker/)"
@@ -150,6 +151,28 @@ if [[ -f "$CODEX_CONFIG" ]]; then
             sed -i '' '/# tmux-claude-agent-tracker/d; /# tmux-agent-tracker/d; /tmux-claude-agent-tracker", "codex-notify/d; /tmux-agent-tracker", "codex-notify/d' "$CODEX_CONFIG"
         fi
         echo "Removed: Codex notify hook from config.toml"
+    fi
+fi
+
+# ── Antigravity hooks ──────────────────────────────────────────────
+
+ANTIGRAVITY_HOOKS="$HOME/.gemini/config/hooks.json"
+if [[ -f "$ANTIGRAVITY_HOOKS" ]]; then
+    if command -v jq >/dev/null 2>&1; then
+        tmp="${ANTIGRAVITY_HOOKS}.tmp"
+        jq 'del(.["tmux-agent-tracker"])' "$ANTIGRAVITY_HOOKS" > "$tmp"
+        if jq -e '. == {}' "$tmp" >/dev/null 2>&1; then
+            rm -f "$tmp" "$ANTIGRAVITY_HOOKS"
+            echo "Removed: Antigravity hooks config file (was empty)"
+        else
+            mv "$tmp" "$ANTIGRAVITY_HOOKS"
+            echo "Removed: Antigravity hooks from $ANTIGRAVITY_HOOKS"
+        fi
+    else
+        echo ""
+        echo "jq not found. Manually remove 'tmux-agent-tracker' entry from:"
+        echo "  $ANTIGRAVITY_HOOKS"
+        echo ""
     fi
 fi
 

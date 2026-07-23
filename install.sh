@@ -507,6 +507,69 @@ install_pi_hooks() {
     fi
 }
 
+# ── configure Antigravity hooks ──────────────────────────────────────
+
+ANTIGRAVITY_HOOKS="$HOME/.gemini/config/hooks.json"
+
+_print_manual_antigravity_hooks() {
+    cat <<'MANUAL_ANTIGRAVITY'
+
+Add the following to ~/.gemini/config/hooks.json:
+
+{
+  "tmux-agent-tracker": {
+    "enabled": true,
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionStart" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionEnd" }] }],
+    "PreInvocation": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook UserPromptSubmit" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "PreToolUse": [{ "matcher": "ask_permission|ask_question", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PermissionRequest" }] }],
+    "PostToolUse": [{ "matcher": "ask_permission|ask_question", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }]
+  }
+}
+MANUAL_ANTIGRAVITY
+}
+
+install_antigravity_hooks() {
+    echo ""
+    echo "── Antigravity hooks ──"
+
+    if ! $HAS_JQ; then
+        echo "antigravity hooks: jq not found — skipping auto-configuration"
+        _print_manual_antigravity_hooks
+        return
+    fi
+
+    # Prepare tracker hooks JSON configuration
+    local tracker_hooks_json='{
+        "enabled": true,
+        "SessionStart": [{"matcher": "", "hooks": [{"type": "command", "command": "tmux-agent-tracker hook SessionStart"}]}],
+        "SessionEnd": [{"matcher": "", "hooks": [{"type": "command", "command": "tmux-agent-tracker hook SessionEnd"}]}],
+        "PreInvocation": [{"matcher": "", "hooks": [{"type": "command", "command": "tmux-agent-tracker hook UserPromptSubmit"}]}],
+        "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "tmux-agent-tracker hook Stop"}]}],
+        "PreToolUse": [{"matcher": "ask_permission|ask_question", "hooks": [{"type": "command", "command": "tmux-agent-tracker hook PermissionRequest"}]}],
+        "PostToolUse": [{"matcher": "ask_permission|ask_question", "hooks": [{"type": "command", "command": "tmux-agent-tracker hook PostToolUse"}]}]
+    }'
+
+    if [[ ! -f "$ANTIGRAVITY_HOOKS" ]]; then
+        mkdir -p "$(dirname "$ANTIGRAVITY_HOOKS")"
+        jq -n --argjson th "$tracker_hooks_json" '{"tmux-agent-tracker": $th}' > "$ANTIGRAVITY_HOOKS"
+        echo "antigravity hooks: created $ANTIGRAVITY_HOOKS with tracker hooks"
+        return
+    fi
+
+    # Merge into existing configuration
+    local tmp="${ANTIGRAVITY_HOOKS}.tmp"
+    jq --argjson th "$tracker_hooks_json" '.["tmux-agent-tracker"] = $th' "$ANTIGRAVITY_HOOKS" > "$tmp"
+    if cmp -s "$ANTIGRAVITY_HOOKS" "$tmp"; then
+        rm -f "$tmp"
+        echo "antigravity hooks: already configured"
+    else
+        mv "$tmp" "$ANTIGRAVITY_HOOKS"
+        echo "antigravity hooks: updated tracker hooks in $ANTIGRAVITY_HOOKS"
+    fi
+}
+
 # ── configure Codex notify hook ──────────────────────────────────────
 
 _print_manual_codex_notify() {
@@ -599,12 +662,14 @@ install_codex_notify
 
 install_pi_hooks
 
+install_antigravity_hooks
+
 # ── done ─────────────────────────────────────────────────────────────
 
 echo ""
 if $HOOKS_ONLY; then
-    echo "Done. Restart Claude Code, Gemini CLI, Codex, and Pi for hooks to take effect."
+    echo "Done. Restart Claude Code, Gemini CLI, Codex, Pi, and Antigravity for hooks to take effect."
 else
     echo "Done. Reload tmux: tmux source ~/.tmux.conf"
-    echo "Then restart Claude Code, Gemini CLI, Codex, and Pi for hooks to take effect."
+    echo "Then restart Claude Code, Gemini CLI, Codex, Pi, and Antigravity for hooks to take effect."
 fi

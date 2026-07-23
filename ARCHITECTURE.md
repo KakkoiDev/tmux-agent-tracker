@@ -190,7 +190,7 @@ Sessions can leak (crashes, killed panes). Three cleanup mechanisms:
 2. **`_reap_dead`** (hook path, throttled to 30s): cross-references `tmux list-panes` with stored pane IDs, deletes dead ones
 3. **`cmd_cleanup`** (manual): deletes sessions older than 24h + dead pane check
 
-`_reap_dead` checks pane liveness via `tmux list-panes` and process inspection via `_has_agent_child`. On Linux this uses `pgrep -P`; on macOS it falls back to `ps`-based lookup since macOS `pgrep -P` silently fails for processes that rename argv[0] (claude runs as node). Working/blocked sessions on live panes without an agent child process (claude, codex, gemini, or pi) are cleaned up (Ctrl+C case).
+`_reap_dead` checks pane liveness via `tmux list-panes` and process inspection via `_has_agent_child`. On Linux this uses `pgrep -P`; on macOS it falls back to `ps`-based lookup since macOS `pgrep -P` silently fails for processes that rename argv[0] (claude runs as node). Working/blocked sessions on live panes without an agent child process (claude, codex, gemini, pi, agy, or antigravity) are cleaned up (Ctrl+C case).
 
 ## SQLite as IPC
 

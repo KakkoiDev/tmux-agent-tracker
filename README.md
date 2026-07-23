@@ -1,6 +1,6 @@
 # tmux-agent-tracker
 
-Track [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Pi coding agent](https://github.com/earendil-works/pi), and Codex agent sessions in your tmux status bar. Hook-driven, no daemon, no polling.
+Track [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Antigravity (`agy`)](https://antigravity.google), [Pi coding agent](https://github.com/earendil-works/pi), and Codex agent sessions in your tmux status bar. Hook-driven, no daemon, no polling.
 
 ## Status Bar
 
@@ -170,6 +170,61 @@ Then restart Pi.
 Pi does not have permission dialogs like Claude Code, so **no `blocked` state** is possible. Pi sessions only cycle through `idle → working → completed`. The `Notification` and `PermissionRequest` hooks are not available.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md#pi-integration) for details.
+
+### Antigravity hooks setup
+
+Antigravity (`agy`) uses a global `hooks.json` file at `~/.gemini/config/hooks.json`. Hooks receive `conversationId` as the session identifier.
+
+#### Automatic (recommended)
+
+Run:
+
+```bash
+~/.tmux/plugins/tmux-agent-tracker/install.sh --hooks-only
+```
+
+This creates or updates `~/.gemini/config/hooks.json` with a `"tmux-agent-tracker"` block.
+
+Verify:
+
+```bash
+jq '."tmux-agent-tracker"' ~/.gemini/config/hooks.json
+```
+
+#### Manual setup
+
+Add to `~/.gemini/config/hooks.json`:
+
+```json
+{
+  "tmux-agent-tracker": {
+    "enabled": true,
+    "SessionStart": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionStart" }] }],
+    "SessionEnd": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook SessionEnd" }] }],
+    "PreInvocation": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook UserPromptSubmit" }] }],
+    "Stop": [{ "matcher": "", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook Stop" }] }],
+    "PreToolUse": [{ "matcher": "ask_permission|ask_question", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PermissionRequest" }] }],
+    "PostToolUse": [{ "matcher": "ask_permission|ask_question", "hooks": [{ "type": "command", "command": "tmux-agent-tracker hook PostToolUse" }] }]
+  }
+}
+```
+
+Then restart `agy`.
+
+#### Event mapping
+
+| Antigravity event | Tracker hook | State change |
+|---|---|---|
+| `SessionStart` | `SessionStart` | → idle |
+| `PreInvocation` | `UserPromptSubmit` | → working |
+| `PostToolUse` (permission tools) | `PostToolUse` | → working |
+| `PreToolUse` (permission tools) | `PermissionRequest` | → blocked |
+| `Stop` | `Stop` | → completed |
+| `SessionEnd` | `SessionEnd` | delete row |
+
+#### Limitations
+
+Antigravity does not expose a direct `blocked` hook for all permission prompts. The `PreToolUse` matcher on `ask_permission|ask_question` catches the tracker's own permission requests; other gating dialogs will not trigger the `blocked` state.
 
 ### Manual setup
 

@@ -2711,3 +2711,64 @@ SCRIPT
     run _detect_agent_client "some-uuid"
     [[ "$output" == "pi" ]]
 }
+
+@test "_detect_agent_client detects antigravity via process tree when TMUX_PANE set" {
+    export TMUX_PANE="%49"
+    tmux() {
+        case "$1" in
+            display-message) echo "12345" ;;
+            *) true ;;
+        esac
+    }
+    _agent_client_type() { echo "antigravity"; }
+    run _detect_agent_client "some-uuid"
+    [[ "$output" == "antigravity" ]]
+}
+@test "cmd_hook parses conversationId when session_id is absent" {
+    # Use full lifecycle: SessionStart creates session, then UserPromptSubmit uses conversationId
+    echo '{"conversationId":"conv-123","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
+    echo '{"conversationId":"conv-123","prompt":"testing conversationId"}' | cmd_hook "UserPromptSubmit"
+    [[ "$(get_status conv-123)" == "working" ]]
+}
+
+@test "cmd_hook parses conversation_id when session_id is absent" {
+    # Use full lifecycle: SessionStart creates session, then UserPromptSubmit uses conversation_id
+    echo '{"conversation_id":"conv-456","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
+    echo '{"conversation_id":"conv-456","prompt":"testing conversation_id"}' | cmd_hook "UserPromptSubmit"
+    [[ "$(get_status conv-456)" == "working" ]]
+}
+
+@test "_agent_client_type detects agy process" {
+    source "$SCRIPTS_DIR/helpers.sh"
+    ps() {
+        echo "PPID COMM"
+        echo "12345 agy"
+    }
+    uname() { echo "Darwin"; }
+    run _agent_client_type "12345"
+    [[ "$output" == "antigravity" ]]
+}
+
+@test "_agent_client_type detects antigravity process" {
+    source "$SCRIPTS_DIR/helpers.sh"
+    ps() {
+        echo "PPID COMM"
+        echo "12345 antigravity"
+    }
+    uname() { echo "Darwin"; }
+    run _agent_client_type "12345"
+    [[ "$output" == "antigravity" ]]
+}
+
+@test "_has_agent_child detects agy process child" {
+    source "$SCRIPTS_DIR/helpers.sh"
+    ps() {
+        echo "PPID COMM"
+        echo "12345 agy"
+    }
+    uname() { echo "Darwin"; }
+    run _has_agent_child "12345"
+    [[ "$status" -eq 0 ]]
+}
+
+
