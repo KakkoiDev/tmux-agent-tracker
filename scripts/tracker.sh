@@ -102,6 +102,23 @@ _fire_transition_hook() {
     return 0
 }
 
+# Additive migrations, each behind a marker file so it runs once.
+#
+# ADDING A COLUMN: add a `.schema_vN` block below with ALTER TABLE ... ADD COLUMN.
+#
+# CHANGING A CHECK CONSTRAINT: sqlite cannot alter one in place, and this is what
+# `DROP TABLE IF EXISTS sessions` in cmd_init used to be for. Do NOT bring that
+# back; use the standard sqlite table rebuild, which preserves the rows:
+#
+#   ALTER TABLE sessions RENAME TO sessions_old;
+#   CREATE TABLE sessions ( ... new constraint ... );
+#   INSERT INTO sessions SELECT <columns> FROM sessions_old;
+#   DROP TABLE sessions_old;
+#
+# all inside one sqlite3 invocation behind a `.schema_vN` marker. No such rebuild
+# is shipped today because none is needed: the constraint in cmd_init's CREATE is
+# byte-identical to the one in every existing database, verified against a live
+# one. Shipping an unused ladder would be code that has never run.
 _ensure_schema() {
     [[ -f "$DB" ]] || return 0
     if [[ ! -f "$TRACKER_DIR/.schema_v2" ]]; then
@@ -170,14 +187,33 @@ SQL
         return
     fi
     mkdir -p "$TRACKER_DIR"
+
+    # CREATE IF NOT EXISTS, never DROP.
+    #
+    # This used to be `DROP TABLE IF EXISTS sessions; CREATE TABLE ...`, on the
+    # grounds that "sessions are ephemeral, re-init is safe". That was true when
+    # the table only held recomputable state. It is not true now: prompt_summary
+    # and task_count are written once by a hook and never resent.
+    #
+    # agent-tracker.tmux runs `tracker.sh init` on every tmux server start, and
+    # ~/.tmux.conf binds prefix+r to `source-file ~/.tmux.conf`. So every config
+    # reload silently wiped every live agent's row mid-session, and the status
+    # badge reset to zeros with agents still working.
+    #
+    # The DROP did provide one real protection, and it is preserved rather than
+    # lost: pane ids are meaningless across a server restart, because tmux
+    # renumbers panes from %0. _invalidate_stale_panes handles that without
+    # destroying anything else.
+    #
+    # The DROP also served CHECK-constraint upgrades. No rebuild ships today
+    # because none is needed: the constraint below is byte-identical to the one
+    # in every existing database. _ensure_schema documents the rebuild procedure
+    # for when that changes.
     sqlite3 "$DB" <<'SQL'
 PRAGMA journal_mode=WAL;
 PRAGMA busy_timeout=100;
 
--- DROP + CREATE: sessions are ephemeral, re-init is safe.
--- Required when upgrading CHECK constraint (e.g. adding 'completed').
-DROP TABLE IF EXISTS sessions;
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
     session_id    TEXT PRIMARY KEY,
     status        TEXT NOT NULL DEFAULT 'working'
         CHECK(status IN ('working', 'blocked', 'idle', 'completed')),
@@ -196,7 +232,30 @@ CREATE TABLE sessions (
     updated_at    INTEGER NOT NULL DEFAULT (unixepoch())
 );
 SQL
+    _ensure_schema
+    _invalidate_stale_panes
     echo "Initialized: $DB"
+}
+
+# A pane id is only meaningful for the tmux server that issued it: a restarted
+# server hands out %0 again, so a stored %7 can resolve to an unrelated pane and
+# `goto` would jump somewhere arbitrary. Blank the pane columns when the server
+# pid changes, and keep everything a hook cannot resend.
+#
+# This is the protection the old DROP TABLE gave, without the data loss.
+_invalidate_stale_panes() {
+    local marker="$TRACKER_DIR/.tmux_server_pid" now prev
+    now=$(tmux display-message -p '#{pid}' 2>/dev/null || true)
+    [[ -n "$now" ]] || return 0
+    prev=$(cat "$marker" 2>/dev/null || true)
+    if [[ "$prev" != "$now" ]]; then
+        if [[ -n "$prev" ]]; then
+            sql "UPDATE sessions SET tmux_pane='', tmux_target='';" 2>/dev/null || true
+            _debug_log "tmux server changed ($prev -> $now); cleared stale pane ids"
+        fi
+        printf '%s' "$now" > "$marker" 2>/dev/null || true
+    fi
+    return 0
 }
 
 # ── hook ──────────────────────────────────────────────────────────────

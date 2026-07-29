@@ -166,3 +166,15 @@ get_subagent_count() {
 age_session() {
     sql "UPDATE sessions SET updated_at = unixepoch() - ${2:-60} WHERE session_id='$1';"
 }
+
+# run_init - `tracker.sh init` in the same environment the hooks get.
+#
+# PATH matters: without the wrapper bin dir, tmux resolves to the real binary and
+# _invalidate_stale_panes reads the developer's live server pid instead of the
+# test server's, so it sees a pid change on every call and blanks pane ids that
+# should have survived.
+run_init() {
+    env TRACKER_DIR="$TRACKER_DIR" DB="$DB" CACHE="$CACHE" \
+        PATH="$TEST_TMPDIR/bin:$PATH" \
+        bash "$TRACKER_SH" init >/dev/null 2>&1
+}

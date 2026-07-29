@@ -685,3 +685,91 @@ teardown() {
 
     fire_hook SessionEnd "$json"
 }
+
+# ── init must not destroy live state ─────────────────────────────────
+#
+# cmd_init used to run `DROP TABLE IF EXISTS sessions`, and
+# agent-tracker.tmux calls `tracker.sh init` on every tmux server start.
+# ~/.tmux.conf binds prefix+r to `source-file ~/.tmux.conf`, so every config
+# reload wiped every live agent's row mid-session and the badge reset to zeros.
+#
+# These assertions are wrapped in a function on purpose: on bash 3.2 a bare
+# [[ ]] that is not the last statement of the body trips neither `set -e` nor
+# the ERR trap, which is how four tests in this file asserted nothing for years.
+_expect() { "$@" || { printf 'assertion failed: %s\n' "$*" >&2; return 1; }; }
+_eq() { [[ "$1" == "$2" ]] || { printf 'expected %s, got %s\n' "$2" "$1" >&2; return 1; }; }
+
+@test "init: a second init keeps existing rows" {
+    local sid="survive-1"
+    fire_hook SessionStart "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
+    fire_hook UserPromptSubmit "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
+    _eq "$(count_sessions)" "1"
+
+    run_init
+
+    _eq "$(count_sessions)" "1"
+    _eq "$(get_status "$sid")" "working"
+}
+
+@test "init: a second init keeps state no hook will resend" {
+    # prompt_summary and task_count are written once and never resent, so
+    # losing them is unrecoverable rather than merely temporary.
+    local sid="survive-2"
+    fire_hook SessionStart "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
+    fire_hook UserPromptSubmit "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\",\"prompt\":\"fix the flaky test\"}"
+    fire_hook TaskCompleted "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
+
+    local summary_before count_before
+    summary_before=$(sql "SELECT prompt_summary FROM sessions WHERE session_id='$sid';")
+    count_before=$(sql "SELECT task_count FROM sessions WHERE session_id='$sid';")
+    _expect test -n "$summary_before"
+    _eq "$count_before" "1"
+
+    run_init
+
+    _eq "$(sql "SELECT prompt_summary FROM sessions WHERE session_id='$sid';")" "$summary_before"
+    _eq "$(sql "SELECT task_count FROM sessions WHERE session_id='$sid';")" "$count_before"
+}
+
+@test "init: repeated inits are stable" {
+    local sid="survive-3"
+    fire_hook SessionStart "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
+    local i
+    for i in 1 2 3 4 5; do run_init; done
+    _eq "$(count_sessions)" "1"
+}
+
+@test "init: a changed tmux server pid blanks pane ids but keeps the row" {
+    # A restarted server hands out %0 again, so a stored %7 can resolve to an
+    # unrelated pane and `goto` would jump somewhere arbitrary. This is the one
+    # protection the old DROP TABLE actually provided.
+    local sid="survive-4"
+    fire_hook_with_pane SessionStart "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
+    fire_hook_with_pane UserPromptSubmit "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\",\"prompt\":\"keep me\"}"
+    _expect test -n "$(sql "SELECT tmux_pane FROM sessions WHERE session_id='$sid';")"
+
+    printf '%s' "99999999" > "$TRACKER_DIR/.tmux_server_pid"
+    run_init
+
+    _eq "$(count_sessions)" "1"
+    _eq "$(sql "SELECT tmux_pane FROM sessions WHERE session_id='$sid';")" ""
+    _eq "$(sql "SELECT tmux_target FROM sessions WHERE session_id='$sid';")" ""
+    _expect test -n "$(sql "SELECT prompt_summary FROM sessions WHERE session_id='$sid';")"
+}
+
+@test "init: an unchanged tmux server pid leaves pane ids alone" {
+    local sid="survive-5"
+    # Both hooks on purpose. SessionStart alone creates no row here, despite
+    # cmd_hook's comment claiming "_ensure_session already created as idle": the
+    # row, and its pane, first appear on UserPromptSubmit. That gap deserves its
+    # own investigation and is not what this test is about.
+    fire_hook_with_pane SessionStart "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
+    fire_hook_with_pane UserPromptSubmit "{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
+    local pane_before
+    pane_before=$(sql "SELECT tmux_pane FROM sessions WHERE session_id='$sid';")
+    _expect test -n "$pane_before"
+
+    run_init
+
+    _eq "$(sql "SELECT tmux_pane FROM sessions WHERE session_id='$sid';")" "$pane_before"
+}
