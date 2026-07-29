@@ -48,6 +48,20 @@ _strip_lines() {
     rm -f "$tmp"
 }
 
+# Replace a config file's contents while preserving it if it is a symlink.
+#
+# The comment above _strip_lines had this right for ~/.tmux.conf, but the four
+# settings.json writes used `mv "$tmp" "$target"`, which replaces the *link*
+# with a regular file. A dotfiles-managed config then silently detaches: the
+# real file keeps its old contents and every later edit lands in a copy nothing
+# reads. Verified on this platform:
+#   ln -s real link; mv new link     -> link is now a regular file
+#   ln -s real link; cat new > link  -> link preserved, real file updated
+_write_through() {
+    local tmp="$1" target="$2"
+    cat "$tmp" > "$target" && rm -f "$tmp"
+}
+
 _upgrade_preclean() {
     # Hooks and the Codex notify line are (re)configured in BOTH modes, so
     # always strip their stale old-name versions.
@@ -72,7 +86,7 @@ _upgrade_preclean() {
                     | if (.hooks | length) == 0 then del(.hooks) else . end
                 else . end
             ' "$settings" > "$t" 2>/dev/null; then
-                mv "$t" "$settings"
+                _write_through "$t" "$settings"
             else
                 rm -f "$t"
             fi
@@ -250,7 +264,7 @@ install_hooks() {
     done
 
     if $changed; then
-        mv "$tmp" "$CLAUDE_SETTINGS"
+        _write_through "$tmp" "$CLAUDE_SETTINGS"
         echo "hooks: added tracker hooks to $CLAUDE_SETTINGS"
     else
         rm -f "$tmp"
@@ -366,7 +380,7 @@ install_gemini_hooks() {
     done
 
     if $changed; then
-        mv "$tmp" "$GEMINI_SETTINGS"
+        _write_through "$tmp" "$GEMINI_SETTINGS"
         echo "gemini hooks: added tracker hooks to $GEMINI_SETTINGS"
     else
         rm -f "$tmp"
@@ -498,7 +512,7 @@ install_pi_hooks() {
     done
 
     if $changed; then
-        mv "$tmp" "$PI_SETTINGS"
+        _write_through "$tmp" "$PI_SETTINGS"
         echo "pi hooks: added tracker hooks to $PI_SETTINGS"
         echo "pi hooks: extension pi-hooks enabled in use.extension"
     else
@@ -565,7 +579,7 @@ install_antigravity_hooks() {
         rm -f "$tmp"
         echo "antigravity hooks: already configured"
     else
-        mv "$tmp" "$ANTIGRAVITY_HOOKS"
+        _write_through "$tmp" "$ANTIGRAVITY_HOOKS"
         echo "antigravity hooks: updated tracker hooks in $ANTIGRAVITY_HOOKS"
     fi
 }
@@ -642,7 +656,7 @@ install_codex_notify() {
             echo ""
             cat "$tmp"
         } > "${tmp}.new"
-        mv "${tmp}.new" "$CODEX_CONFIG"
+        _write_through "${tmp}.new" "$CODEX_CONFIG"
         rm -f "$tmp"
         echo "codex: moved notify hook to top-level in $CODEX_CONFIG"
         return
@@ -654,7 +668,7 @@ install_codex_notify() {
         echo ""
         cat "$CODEX_CONFIG"
     } > "${CODEX_CONFIG}.tmp"
-    mv "${CODEX_CONFIG}.tmp" "$CODEX_CONFIG"
+    _write_through "${CODEX_CONFIG}.tmp" "$CODEX_CONFIG"
     echo "codex: added top-level notify hook to $CODEX_CONFIG"
 }
 

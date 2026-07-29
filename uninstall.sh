@@ -13,6 +13,20 @@ _strip_lines() {
     rm -f "$tmp"
 }
 
+# Replace a config file's contents while preserving it if it is a symlink.
+#
+# The comment above had this right for ~/.tmux.conf, but the four settings.json
+# writes below used `mv "$tmp" "$target"`, which replaces the *link* with a
+# regular file. Uninstalling then detached a dotfiles-managed config: the real
+# file kept its old contents, including the hooks this script was removing.
+# Verified on this platform:
+#   ln -s real link; mv new link     -> link is now a regular file
+#   ln -s real link; cat new > link  -> link preserved, real file updated
+_write_through() {
+    local tmp="$1" target="$2"
+    cat "$tmp" > "$target" && rm -f "$tmp"
+}
+
 # ── confirmation ─────────────────────────────────────────────────────
 
 echo "This will remove tmux-agent-tracker and all its artifacts:"
@@ -74,7 +88,7 @@ if [[ -f "$CLAUDE_SETTINGS" ]]; then
                 )
                 | if (.hooks | length) == 0 then del(.hooks) else . end
             else . end
-        ' "$CLAUDE_SETTINGS" > "$tmp" && mv "$tmp" "$CLAUDE_SETTINGS"
+        ' "$CLAUDE_SETTINGS" > "$tmp" && _write_through "$tmp" "$CLAUDE_SETTINGS"
         echo "Removed: Claude Code hooks from settings.json"
     else
         echo ""
@@ -102,7 +116,7 @@ if [[ -f "$GEMINI_SETTINGS" ]]; then
                 )
                 | if (.hooks | length) == 0 then del(.hooks) else . end
             else . end
-        ' "$GEMINI_SETTINGS" > "$tmp" && mv "$tmp" "$GEMINI_SETTINGS"
+        ' "$GEMINI_SETTINGS" > "$tmp" && _write_through "$tmp" "$GEMINI_SETTINGS"
         echo "Removed: Gemini CLI hooks from settings.json"
     else
         echo ""
@@ -130,7 +144,7 @@ if [[ -f "$PI_SETTINGS" ]]; then
                 )
                 | if (.hooks | length) == 0 then del(.hooks) else . end
             else . end
-        ' "$PI_SETTINGS" > "$tmp" && mv "$tmp" "$PI_SETTINGS"
+        ' "$PI_SETTINGS" > "$tmp" && _write_through "$tmp" "$PI_SETTINGS"
         echo "Removed: Pi hooks from $PI_SETTINGS"
     else
         echo ""
@@ -145,11 +159,13 @@ fi
 CODEX_CONFIG="$HOME/.codex/config.toml"
 if [[ -f "$CODEX_CONFIG" ]]; then
     if grep -Eq '"tmux-(claude-)?agent-tracker", "codex-notify"' "$CODEX_CONFIG"; then
-        if sed --version 2>/dev/null | grep -q GNU; then
-            sed -i '/# tmux-claude-agent-tracker/d; /# tmux-agent-tracker/d; /tmux-claude-agent-tracker", "codex-notify/d; /tmux-agent-tracker", "codex-notify/d' "$CODEX_CONFIG"
-        else
-            sed -i '' '/# tmux-claude-agent-tracker/d; /# tmux-agent-tracker/d; /tmux-claude-agent-tracker", "codex-notify/d; /tmux-agent-tracker", "codex-notify/d' "$CODEX_CONFIG"
-        fi
+        # _strip_lines, not `sed -i`. BSD sed refuses in-place editing of a
+        # symlink outright ("in-place editing only works for regular files"),
+        # so a dotfiles-managed config.toml aborted this script under
+        # `set -euo pipefail` before it finished uninstalling. Using the helper
+        # also removes the GNU/BSD branch, since the temp + cat-redirect form is
+        # identical on both.
+        _strip_lines "$CODEX_CONFIG" '/# tmux-claude-agent-tracker/d; /# tmux-agent-tracker/d; /tmux-claude-agent-tracker", "codex-notify/d; /tmux-agent-tracker", "codex-notify/d'
         echo "Removed: Codex notify hook from config.toml"
     fi
 fi
@@ -165,7 +181,7 @@ if [[ -f "$ANTIGRAVITY_HOOKS" ]]; then
             rm -f "$tmp" "$ANTIGRAVITY_HOOKS"
             echo "Removed: Antigravity hooks config file (was empty)"
         else
-            mv "$tmp" "$ANTIGRAVITY_HOOKS"
+            _write_through "$tmp" "$ANTIGRAVITY_HOOKS"
             echo "Removed: Antigravity hooks from $ANTIGRAVITY_HOOKS"
         fi
     else
