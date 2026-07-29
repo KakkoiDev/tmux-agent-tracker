@@ -25,21 +25,32 @@ _file_mtime() {
 # processes. Includes "deer" and "deerbox" since deerbox runs claude
 # inside a sandbox where hooks cannot fire, so host-side scan is
 # the only detection path.
+# Every process name that counts as an agent harness. One list, so adding a
+# harness is one edit rather than one per platform branch.
+#
+# Keep this list identical to tmux-agent-resumer/scripts/helpers.sh. It drifted
+# once already: this file listed eight names and the resumer's Linux branch
+# listed five, dropping deer, deerbox and agy, so on Linux the resumer's
+# give-up check could not see an agent the tracker's reaper could. Both are
+# destined for the shared lib/identity.sh.
+_AGENT_COMMS="claude codex gemini deer deerbox pi agy antigravity"
+
+# _has_agent_child <shell_pid> - is an agent harness a direct child of this pid?
+#
+# One `ps -eo ppid,comm | awk` for both platforms, not a Darwin/Linux fork.
+# `ps -eo ppid,comm` is POSIX and verified to print a bare command name on this
+# platform ("claude", not a path), so exact-match works everywhere and there is
+# no second branch left to drift.
+#
+# `comm`, never `pane_current_command`: Claude Code rewrites argv[0] to its own
+# version string, so tmux reports the pane's command as e.g. "2.1.220".
 _has_agent_child() {
     local shell_pid="$1"
-    case "$(uname)" in
-        Darwin)
-            ps -eo ppid,comm | awk -v p="$shell_pid" '$1 == p && ($2 == "claude" || $2 == "codex" || $2 == "gemini" || $2 == "deer" || $2 == "deerbox" || $2 == "pi" || $2 == "agy" || $2 == "antigravity")' | grep -q . ;;
-        *)
-            pgrep -P "$shell_pid" -x "claude" >/dev/null 2>/dev/null || \
-            pgrep -P "$shell_pid" -x "codex" >/dev/null 2>/dev/null || \
-            pgrep -P "$shell_pid" -x "gemini" >/dev/null 2>/dev/null || \
-            pgrep -P "$shell_pid" -x "deer" >/dev/null 2>/dev/null || \
-            pgrep -P "$shell_pid" -x "deerbox" >/dev/null 2>/dev/null || \
-            pgrep -P "$shell_pid" -x "pi" >/dev/null 2>/dev/null || \
-            pgrep -P "$shell_pid" -x "agy" >/dev/null 2>/dev/null || \
-            pgrep -P "$shell_pid" -x "antigravity" >/dev/null 2>/dev/null ;;
-    esac
+    ps -eo ppid,comm 2>/dev/null | awk -v p="$shell_pid" -v names="$_AGENT_COMMS" '
+        BEGIN { n = split(names, a, " "); for (i = 1; i <= n; i++) want[a[i]] = 1 }
+        $1 == p && ($2 in want) { found = 1; exit }
+        END { exit !found }
+    '
 }
 
 # Identify which agent client a shell's child process is.
