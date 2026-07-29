@@ -26,6 +26,7 @@ teardown() {
     [[ "$(read_cache)" == *"1*"* ]]
 
     # Notification → blocked
+    age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
     [[ "$(get_status "$sid")" == "blocked" ]]
     [[ "$(read_cache)" == *"1!"* ]]
@@ -55,6 +56,7 @@ teardown() {
     [[ "$(get_status "$sid")" == "working" ]]
 
     # Block
+    age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
     [[ "$(get_status "$sid")" == "blocked" ]]
     local blocked_cache
@@ -99,6 +101,7 @@ teardown() {
 
     fire_hook SessionStart "$json"
     fire_hook UserPromptSubmit "$json"
+    age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
     [[ "$(get_status "$sid")" == "blocked" ]]
 
@@ -237,6 +240,10 @@ teardown() {
         fire_hook UserPromptSubmit "{\"session_id\":\"mix-$i\",\"cwd\":\"/tmp/test\"}"
     done
 
+    # Age the even sessions past the Notification handler's 45s race guard, or
+    # every Notification below is a no-op and the blocked count stays 0.
+    for i in 2 4 6 8 10; do age_session "mix-$i" 60; done
+
     # Even sessions get Notification, odd get PostToolUse — in parallel
     local pids=()
     for i in $(seq 1 10); do
@@ -264,10 +271,12 @@ teardown() {
     fire_hook UserPromptSubmit "$json"
 
     # working → blocked → working → blocked → working
+    age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
     [[ "$(get_status "$sid")" == "blocked" ]]
     fire_hook PostToolUse "$json"
     [[ "$(get_status "$sid")" == "working" ]]
+    age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
     [[ "$(get_status "$sid")" == "blocked" ]]
     fire_hook PostToolUse "$json"
@@ -426,6 +435,7 @@ teardown() {
     [[ "$(get_status "$sid")" == "working" ]]
 
     # Block and unblock
+    age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
     [[ "$(get_status "$sid")" == "blocked" ]]
     fire_hook PostToolUse "$json"
@@ -482,6 +492,7 @@ teardown() {
     fire_hook SessionStart "$json"
     fire_hook UserPromptSubmit "$json"
     fire_hook SubagentStart "$sub1"
+    age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
     [[ "$(get_status "$sid")" == "blocked" ]]
 
@@ -601,7 +612,7 @@ teardown() {
     # SessionStart → idle (pi client detected from session_id path)
     fire_hook SessionStart "$json"
     [[ "$(get_status "$sid")" == "idle" ]]
-    [[ "$(sql \"SELECT agent_client FROM sessions WHERE session_id='$sid';\")" == "pi" ]]
+    [[ "$(sql "SELECT agent_client FROM sessions WHERE session_id='$sid';")" == "pi" ]]
 
     # UserPromptSubmit → working
     fire_hook UserPromptSubmit "$json"
@@ -653,12 +664,12 @@ teardown() {
     # Pi session
     fire_hook SessionStart "$pi_json"
     fire_hook UserPromptSubmit "$pi_json"
-    [[ "$(sql \"SELECT agent_client FROM sessions WHERE session_id='$pi_sid';\")" == "pi" ]]
+    [[ "$(sql "SELECT agent_client FROM sessions WHERE session_id='$pi_sid';")" == "pi" ]]
 
     # Claude session
     fire_hook SessionStart "$cc_json"
     fire_hook UserPromptSubmit "$cc_json"
-    [[ "$(sql \"SELECT agent_client FROM sessions WHERE session_id='$cc_sid';\")" == "claude" ]]
+    [[ "$(sql "SELECT agent_client FROM sessions WHERE session_id='$cc_sid';")" == "claude" ]]
 
     # Both working: count = 2
     local out

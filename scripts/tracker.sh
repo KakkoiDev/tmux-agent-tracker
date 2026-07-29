@@ -33,13 +33,20 @@ _migrate_legacy_dir
 # permission bits, which are unchanged inside macOS sandbox-exec.
 # The sandbox intercepts at the syscall level, so -w returns true
 # but actual writes fail. A probe write is the only reliable test.
+# Overridable so a test suite can use a private path. Previously this was
+# hardcoded in three places, including inside cmd_merge_sandbox, which meant a
+# test writing fixtures here had them merged into the user's real database by the
+# next status-bar refresh. See the note on cmd_merge_sandbox.
+SANDBOX_DB="${TRACKER_SANDBOX_DB:-/tmp/tmux-agent-tracker-sandbox.db}"
+SANDBOX_CACHE="${TRACKER_SANDBOX_CACHE:-/tmp/tmux-agent-tracker-sandbox-cache}"
+
 _SANDBOX=0
 if [[ -d "$TRACKER_DIR" ]]; then
     _probe="$TRACKER_DIR/.sandbox-probe.$$"
     if ! touch "$_probe" 2>/dev/null; then
         _SANDBOX=1
-        DB="/tmp/tmux-agent-tracker-sandbox.db"
-        CACHE="/tmp/tmux-agent-tracker-sandbox-cache"
+        DB="$SANDBOX_DB"
+        CACHE="$SANDBOX_CACHE"
     else
         rm -f "$_probe" 2>/dev/null
     fi
@@ -761,9 +768,28 @@ cmd_status_bar() {
 
 # ── merge sandbox ────────────────────────────────────────────────────
 
+# Import sessions recorded by a sandboxed agent, which cannot write $TRACKER_DIR.
+#
+# This runs from cmd_refresh, which runs from `#(tracker.sh refresh)` in
+# status-right, i.e. every status-interval on a live server. It ATTACHes a file
+# under /tmp and copies rows straight into the real database, so the source file
+# is a write path into that database for anything that can create it.
+#
+# Two guards, both learned the hard way. This project's own test suite wrote
+# fixtures to the hardcoded path, and a live refresh merged six `deer` test rows
+# into the developer's database within fifteen seconds:
+#
+#   1. The path is overridable (TRACKER_SANDBOX_DB), so tests use a private one.
+#   2. Ownership is checked. /tmp is world-writable and shared between users, so
+#      an unowned file there must never be trusted enough to ATTACH. `-O` tests
+#      ownership by effective UID.
 cmd_merge_sandbox() {
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$SANDBOX_DB"
     [[ -f "$sandbox_db" ]] || return 0
+    if [[ ! -O "$sandbox_db" ]]; then
+        _debug_log "merge-sandbox: refusing $sandbox_db, not owned by this user"
+        return 0
+    fi
 
     # Import sandbox sessions into host DB.
     # - INSERT OR IGNORE: new sessions from sandbox

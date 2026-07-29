@@ -2114,7 +2114,7 @@ SCRIPT
 
 @test "cmd_merge_sandbox imports new sessions into host DB" {
     # Host DB is the normal test DB
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
     insert_session_into "$sandbox_db" "sandbox-s1" "working" "deer"
 
@@ -2129,7 +2129,7 @@ SCRIPT
 }
 
 @test "cmd_merge_sandbox does not overwrite newer host data" {
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
 
     # Sandbox has completed session at timestamp 1000
@@ -2147,7 +2147,7 @@ SCRIPT
 }
 
 @test "cmd_merge_sandbox updates host when sandbox has newer data" {
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
 
     # Host has idle session at timestamp 1000
@@ -2165,7 +2165,7 @@ SCRIPT
 }
 
 @test "cmd_merge_sandbox backfills tmux_target from tmux_pane" {
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
 
     # Sandbox session has pane but no target
@@ -2188,7 +2188,7 @@ SCRIPT
 }
 
 @test "cmd_merge_sandbox preserves host tmux_pane when sandbox has empty" {
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
 
     # Host has pane info, sandbox doesn't
@@ -2203,13 +2203,13 @@ SCRIPT
 }
 
 @test "cmd_merge_sandbox no-op when no sandbox DB exists" {
-    rm -f "/tmp/tmux-agent-tracker-sandbox.db"
+    rm -f "$TRACKER_SANDBOX_DB"
     # Should not error
     cmd_merge_sandbox
 }
 
 @test "cmd_merge_sandbox skips render when nothing changed" {
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
 
     # Same session, same data, same timestamp - no update
@@ -2261,7 +2261,7 @@ SCRIPT
 }
 
 @test "integration: sandbox merge then host pane-focus does not flicker" {
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
 
     # Sandbox session completed
@@ -2572,7 +2572,7 @@ SCRIPT
 }
 
 @test "cmd_merge_sandbox evicts scan duplicate when real session owns same pane" {
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
 
     # Scan detected deerbox first
@@ -2593,7 +2593,7 @@ SCRIPT
 }
 
 @test "cmd_merge_sandbox keeps scan session when no real session on that pane" {
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
 
     # Scan session on pane %41
@@ -2613,7 +2613,7 @@ SCRIPT
 
 @test "integration: scan then merge deduplicates to single session per pane" {
     rm -f "$TRACKER_DIR/.last_scan"
-    local sandbox_db="/tmp/tmux-agent-tracker-sandbox.db"
+    local sandbox_db="$TRACKER_SANDBOX_DB"
     create_sandbox_db "$sandbox_db"
 
     # Step 1: scan detects deerbox on pane %43

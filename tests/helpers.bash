@@ -6,6 +6,11 @@ SCRIPTS_DIR="$PROJECT_ROOT/scripts"
 
 # Per-test temp directory
 setup_test_env() {
+    # A private sandbox path per run. The production default is a hardcoded
+    # /tmp file that cmd_refresh merges into the real database every
+    # status-interval, so fixtures written there leak straight into it.
+    export TRACKER_SANDBOX_DB="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/sandbox-$$.db"
+    export TRACKER_SANDBOX_CACHE="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}/sandbox-$$-cache"
     TEST_TMPDIR=$(mktemp -d)
     export TRACKER_DIR="$TEST_TMPDIR"
     export DB="$TRACKER_DIR/tracker.db"
@@ -62,11 +67,11 @@ teardown_test_env() {
     [[ -d "${TEST_TMPDIR:-}" ]] && rm -rf "$TEST_TMPDIR"
     [[ -d "${SANDBOX_DB_DIR:-}" ]] && rm -rf "$SANDBOX_DB_DIR"
     # Clean shared sandbox DB to avoid leftover merge data
-    rm -f /tmp/tmux-agent-tracker-sandbox.db \
-          /tmp/tmux-agent-tracker-sandbox.db-wal \
-          /tmp/tmux-agent-tracker-sandbox.db-shm \
-          /tmp/tmux-agent-tracker-sandbox-cache \
-          /tmp/tmux-agent-tracker-sandbox-cache.tmp
+    rm -f "$TRACKER_SANDBOX_DB" \
+          "$TRACKER_SANDBOX_DB-wal" \
+          "$TRACKER_SANDBOX_DB-shm" \
+          "$TRACKER_SANDBOX_CACHE" \
+          "$TRACKER_SANDBOX_CACHE.tmp"
 }
 
 # Direct SQL helper
