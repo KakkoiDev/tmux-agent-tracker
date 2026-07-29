@@ -38,13 +38,35 @@ for src_dir in "$CURRENT_DIR"/.claude/skills/tmux-agent-tracker*; do
     _sync_skill_bundle "$src_dir" "${CODEX_HOME:-$HOME/.codex}/skills"
 done
 
-# Bind menu key
-tmux bind-key "$KEYBINDING" run-shell "$SCRIPTS_DIR/tracker.sh menu"
+# Bind menu key. Single-quote the path so a plugin dir containing a space
+# survives run-shell's /bin/sh word splitting.
+tmux bind-key "$KEYBINDING" run-shell "'$SCRIPTS_DIR/tracker.sh' menu"
 
-# Clear completed status when user navigates to a pane
-tmux set-hook -g session-window-changed "run-shell -b '$SCRIPTS_DIR/tracker.sh pane-focus #{pane_id}'"
-tmux set-hook -g window-pane-changed "run-shell -b '$SCRIPTS_DIR/tracker.sh pane-focus #{pane_id}'"
-tmux set-hook -g client-session-changed "run-shell -b '$SCRIPTS_DIR/tracker.sh pane-focus #{pane_id}'"
+# Clear completed status when the user navigates to a pane.
+#
+# -ga, not -g. A plain `set-hook -g` REPLACES every handler on that hook, so on
+# each load this silently deleted whatever tmux-agent-mesh, tmux-worktree or the
+# user had registered on these three events. tmux re-sources this file on every
+# `source-file`, and prefix+r is bound to exactly that.
+#
+# The existence check is what keeps -ga idempotent: an unconditional append adds
+# one duplicate handler per reload, and the duplicates are invisible until
+# something runs three times.
+_add_focus_hook() {
+    local hook="$1" cmd="run-shell -b '$SCRIPTS_DIR/tracker.sh pane-focus #{pane_id}'"
+    # An invalid hook name is accepted silently by set-hook and then never
+    # fires, so validate first: show-hooks exits non-zero for an unknown name.
+    if ! tmux show-hooks -g "$hook" >/dev/null 2>&1; then
+        echo "agent-tracker: '$hook' is not a valid tmux hook on $(tmux -V); skipping" >&2
+        return 0
+    fi
+    tmux show-hooks -g "$hook" 2>/dev/null | grep -qF "$SCRIPTS_DIR/tracker.sh pane-focus" && return 0
+    tmux set-hook -ga "$hook" "$cmd"
+}
+
+_add_focus_hook session-window-changed
+_add_focus_hook window-pane-changed
+_add_focus_hook client-session-changed
 
 # Set status-interval for periodic blocked timer refresh.
 # Only lower it — never override a user's custom short interval.
