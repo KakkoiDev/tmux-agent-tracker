@@ -150,3 +150,19 @@ cache_mtime() {
 get_subagent_count() {
     sql "SELECT subagent_count FROM sessions WHERE session_id='$1';"
 }
+
+# age_session <sid> <seconds> - backdate a session's updated_at.
+#
+# Required before firing Notification. _hook_notification only blocks a session
+# whose updated_at is at least 45s old:
+#
+#   UPDATE sessions SET status='blocked' ... AND updated_at <= unixepoch() - 45
+#
+# That guard is deliberate (Notification has a 4-41s upstream delay, and a late
+# one must not re-block a session PostToolUse already cleared). A test that fires
+# UserPromptSubmit and then Notification back to back therefore matches zero
+# rows and the session stays 'working'. Four integration tests backdated only
+# *after* the Notification and so silently never reached 'blocked' at all.
+age_session() {
+    sql "UPDATE sessions SET updated_at = unixepoch() - ${2:-60} WHERE session_id='$1';"
+}

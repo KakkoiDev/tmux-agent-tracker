@@ -123,6 +123,8 @@ teardown() {
 
     fire_hook SessionStart "{\"session_id\":\"$sid1\",\"cwd\":\"/tmp/test\"}"
     fire_hook UserPromptSubmit "{\"session_id\":\"$sid1\",\"cwd\":\"/tmp/test\"}"
+    # Notification only blocks a session whose updated_at is >=45s old.
+    age_session "$sid1" 60
     fire_hook Notification "{\"session_id\":\"$sid1\",\"cwd\":\"/tmp/test\"}"
 
     # Backdate to 3 minutes ago
@@ -144,6 +146,8 @@ teardown() {
     # Use fire_hook_with_pane so backdated session survives paneless reaping
     fire_hook_with_pane SessionStart "{\"session_id\":\"$sid1\",\"cwd\":\"/tmp/test\"}"
     fire_hook_with_pane UserPromptSubmit "{\"session_id\":\"$sid1\",\"cwd\":\"/tmp/test\"}"
+    # Notification only blocks a session whose updated_at is >=45s old.
+    age_session "$sid1" 60
     fire_hook_with_pane Notification "{\"session_id\":\"$sid1\",\"cwd\":\"/tmp/test\"}"
 
     # Backdate to 2 hours ago
@@ -167,6 +171,7 @@ teardown() {
     done
 
     # s1=working, s2=blocked, s3=completed
+    age_session "multi-2" 60
     fire_hook Notification "{\"session_id\":\"multi-2\",\"cwd\":\"/tmp/test\"}"
     fire_hook Stop "{\"session_id\":\"multi-3\",\"cwd\":\"/tmp/test\"}"
 
@@ -189,6 +194,8 @@ teardown() {
     done
 
     # 2 working (1,2), 2 blocked (3,4), 2 completed (5,6)
+    age_session "big-3" 60
+    age_session "big-4" 60
     fire_hook Notification "{\"session_id\":\"big-3\",\"cwd\":\"/tmp/test\"}"
     fire_hook Notification "{\"session_id\":\"big-4\",\"cwd\":\"/tmp/test\"}"
     fire_hook Stop "{\"session_id\":\"big-5\",\"cwd\":\"/tmp/test\"}"
