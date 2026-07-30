@@ -53,9 +53,31 @@ if [[ -d "$TRACKER_DIR" ]]; then
     unset _probe
 fi
 
-sql() { printf '.timeout 100\n%s\n' "$*" | sqlite3 "$DB"; }
-sql_sep() { local s="$1"; shift; printf '.timeout 100\n%s\n' "$*" | sqlite3 -separator "$s" "$DB"; }
-sql_esc() { local q="'"; printf '%s' "${1//$q/$q$q}"; }
+# TK_DIR is resolved here rather than deferred to load_config the way helpers.sh
+# has to: TRACKER_DIR is known by this point, and tk_log keys off TK_DIR, so it
+# must not wait for the first config load to find its file.
+#
+# TK_TMUX_DISABLED is the library's no-op mode, and it is what _tmux was
+# hand-rolling. Wiring it once here rather than at each call site means anything
+# reaching tmux through the library, including tk_opt, is inert in the sandbox,
+# which the old per-call check in _tmux did not cover: it guarded 5 call sites
+# while 38 bare `tmux` calls in this file bypassed it entirely.
+#
+# It is a function purely so a test can drive it; _SANDBOX is decided once, from a
+# write probe, and never changes at runtime.
+# shellcheck disable=SC2034  # read by tk_tmux in the vendored lib/tmux.sh
+_tracker_sandbox_wire() {
+    [[ "$_SANDBOX" -eq 1 ]] && TK_TMUX_DISABLED=1
+    return 0
+}
+_tracker_tk_init
+_tracker_sandbox_wire
+
+sql() { tk_sql "$DB" "$@"; }
+sql_sep() { local s="$1"; shift; tk_sql_sep "$DB" "$s" "$@"; }
+sql_esc() { tk_sql_esc "$1"; }
+# NOT tk_json_esc: this one folds a newline to a space so a prompt summary stays
+# on one line in the status bar, where tk_json_esc emits a literal \n escape.
 json_esc() {
     local s="$1"
     s="${s//\\/\\\\}"
@@ -66,18 +88,26 @@ json_esc() {
 
 # ── debug logging ────────────────────────────────────────────────────
 
+# tk_log's target is $TK_DIR/debug.log, which is the same path this wrote to.
+# Two differences, neither of which anything parses: the line gains a `[debug]`
+# level field, and the trim is sampled at ~1 write in 100 instead of running
+# `wc -l` on the log for every single line - a fork per log call, on a path that
+# fires around 12 times per turn.
 _debug_log() {
     [[ "${DEBUG_LOG:-0}" == "1" ]] || return 0
-    local _log="$TRACKER_DIR/debug.log"
-    printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$_log"
-    local _lc
-    _lc=$(wc -l < "$_log" 2>/dev/null) || return 0
-    if [[ "${_lc:-0}" -gt 1500 ]]; then
-        tail -n 1000 "$_log" > "$_log.tmp" && mv -f "$_log.tmp" "$_log"
-    fi
+    TK_LOG_LEVEL=debug tk_log debug "$*"
 }
 
-# Fast JSON value extraction — replaces jq for simple key lookups
+# Fast JSON value extraction, in place of jq for simple key lookups.
+#
+# NOT replaced by lib/json.sh's tk_json, for two reasons measured here. First,
+# cmd_hook_generic reads its payload with `read -r payload`, which takes only the
+# FIRST LINE, so a pretty-printed payload arrives as `{` and no extractor of any
+# kind can recover it; swapping in jq would turn a wrong-but-quiet result into a
+# parse failure without fixing anything. Second, the identical-looking function in
+# tmux-agent-resumer turned out to depend on this being depth-blind: a substring
+# slice finds a nested key, and `.text` does not. Fixing the payload read is
+# D-15's job, and the swap belongs with it.
 _json_val() {
     local _t="${1#*\"$2\":\"}"
     [[ "$_t" == "$1" ]] && return
@@ -94,10 +124,7 @@ _RENDER_SQL="SELECT
               WHERE status='blocked' AND COALESCE(agent_type,'')='' AND parent_session_id IS NULL),0)
     FROM sessions WHERE COALESCE(agent_type,'')='' AND parent_session_id IS NULL"
 
-_tmux() {
-    [[ "$_SANDBOX" -eq 1 ]] && return 0
-    tmux "$@"
-}
+_tmux() { tk_tmux "$@"; }
 
 _fire_transition_hook() {
     local from="$1" to="$2" sid="$3" project="$4" summary="${5:-}"
@@ -692,24 +719,27 @@ _hook_teammate_idle() {
 
 # Fast config: source cache file directly, skip date+stat freshness check.
 # Full load_config (with freshness) runs on status-bar/menu paths.
+# NG-3. This used to source $TRACKER_DIR/config_cache with no staleness check at
+# all, and call load_config only when the file did not exist. So the first hook
+# after install wrote the cache and every later read took it verbatim, forever:
+# `tmux set -g @agent-tracker-color-idle red` never took effect, and neither did
+# any other @agent-tracker-* option, on any machine, ever. The first external
+# consumer of the toolkit reported it, and it is the reason tk_config_load exists
+# in the shape it does.
+#
+# load_config is now tk_config_load, which honours the 60s TTL on the fast path,
+# validates the cache's provenance before sourcing it, and rebuilds rather than
+# reports when it will not parse. So this is just load_config with the
+# already-loaded short circuit kept.
+#
+# The sandbox branch no longer hardcodes a second copy of the defaults. TRACKER_DIR
+# is unwritable there and tmux is unreachable, so TK_TMUX_DISABLED makes every
+# option read return its spec default with zero forks, which is what the hardcoded
+# list was approximating by hand. It had already drifted from the specs once by
+# omitting KEYBINDING, ITEMS_PER_PAGE, the three key bindings and SHOW_PROJECT.
 _load_config_fast() {
     [[ -n "${COLOR_WORKING:-}" ]] && return 0
-    if [[ "$_SANDBOX" -eq 1 ]]; then
-        # Hardcode defaults - no tmux option access in sandbox
-        COLOR_WORKING="black"; COLOR_BLOCKED="black"
-        COLOR_IDLE="black"; COLOR_COMPLETED="black"
-        ICON_IDLE="."; ICON_WORKING="*"
-        ICON_COMPLETED="+"; ICON_BLOCKED="!"
-        COMPLETED_DELAY=3; DEBUG_LOG=0; _HAS_HOOKS=0
-        MAX_NAME_LENGTH=40
-        return 0
-    fi
-    local _cc="$TRACKER_DIR/config_cache"
-    if [[ -f "$_cc" ]]; then
-        source "$_cc"
-    else
-        load_config 2>/dev/null || true
-    fi
+    load_config 2>/dev/null || true
 }
 
 # Write formatted cache from pre-fetched "w|b|i|c|dur" data

@@ -1,0 +1,52 @@
+name: CI
+on:
+  push:
+  pull_request:
+
+# No shellcheck gate. `shellcheck -S warning` reports 11 findings on this tree
+# today (1 SC2155 plus five each of SC2221/SC2222 inside _map_codex_event's glob
+# cases), all pre-existing, and a gate that is red on arrival gets ignored rather
+# than fixed. Add it in the same change that clears them.
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats, sqlite3, tmux, jq
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bats sqlite3 tmux jq
+      # lib/ is vendored from KakkoiDev/tmux-toolkit via git subtree. Editing it
+      # in place here is how five plugins accumulated 26 duplicated helpers in
+      # the first place, so a drifted copy fails the build. Fix it upstream and
+      # run `make fanout` in the toolkit.
+      - name: lib/ has not drifted from its tagged source
+        run: |
+          have=$(find lib -name '*.sh' | sort | xargs shasum | shasum | cut -d' ' -f1)
+          want=$(cat lib/.checksum)
+          if [ "$have" != "$want" ]; then
+            echo "lib/ has drifted from tmux-toolkit $(cat lib/VERSION)" >&2
+            echo "  expected $want" >&2
+            echo "  actual   $have" >&2
+            exit 1
+          fi
+          echo "lib/ matches tmux-toolkit $(cat lib/VERSION)"
+      - name: bats
+        run: bats tests/
+
+  # The point of this job is the *system* bash, which is 3.2 on macOS: a bare
+  # [[ ]] assertion there trips neither `set -e` nor the ERR trap unless it is
+  # the last statement of the test body, so a suite can be green while asserting
+  # nothing. `bats` on macOS will happily run under brew's bash 5 and quietly
+  # stop testing that tier, so the interpreter is pinned rather than printed.
+  bats-macos-bash32:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install bats
+        run: brew install bats-core
+      - name: confirm /bin/bash is 3.2
+        run: /bin/bash --version | head -1 | grep 'version 3'
+      - name: bats under bash 3.2
+        run: /bin/bash "$(command -v bats)" tests/

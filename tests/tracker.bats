@@ -1914,18 +1914,28 @@ SCRIPT
     refute_file "$TRACKER_DIR/debug.log"
 }
 
-@test "_debug_log auto-truncates at 1500 lines" {
+@test "_debug_log writes to the same debug.log as before" {
+    export DEBUG_LOG="1"
+    _debug_log "hello from the shim"
+    assert_file "$TRACKER_DIR/debug.log"
+    assert_contains "$(cat "$TRACKER_DIR/debug.log")" "hello from the shim"
+}
+
+# The bound is still 1500/1000, but tk_log samples the check at roughly 1 write in
+# 100 instead of running `wc -l` on the log for every single line, which was a fork
+# per log call on a path that fires ~12 times per turn. So a single _debug_log call
+# is no longer expected to trim, and asserting that it does would be asserting the
+# fork back into existence. tk_log_trim is the deterministic entry point, and it is
+# what `doctor` uses.
+@test "_debug_log keeps the log bounded (trim is sampled, then forced)" {
     export DEBUG_LOG="1"
     local _log="$TRACKER_DIR/debug.log"
-    # Write 1501 lines directly
     for i in $(seq 1 1501); do
         echo "2026-01-01 00:00:00 line $i" >> "$_log"
     done
-    # Trigger truncation via _debug_log
-    _debug_log "trigger truncation"
-    local lc
-    lc=$(wc -l < "$_log")
-    assert_num_le "$lc" 1001
+    _debug_log "one more"
+    tk_log_trim
+    assert_num_le "$(wc -l < "$_log")" 1001
 }
 
 @test "cmd_hook logs event entry when DEBUG_LOG=1" {
@@ -2008,21 +2018,47 @@ SCRIPT
     CACHE="$saved_cache"
 }
 
-@test "_tmux is no-op when _SANDBOX=1" {
-    _SANDBOX=1
+# The sandbox no-op is now lib/tmux.sh's TK_TMUX_DISABLED rather than a
+# hand-rolled check inside _tmux, so these drive the flag the library reads.
+# _tracker_sandbox_wire is what connects the two, and it is tested on its own
+# below: without it, setting _SANDBOX would silently stop disabling anything.
+@test "_tmux is no-op when tmux is disabled" {
+    TK_TMUX_DISABLED=1
     local _called=0
     tmux() { _called=1; }
     _tmux refresh-client -S
     assert_num_eq "$_called" 0
-    _SANDBOX=0
+    TK_TMUX_DISABLED=0
 }
 
-@test "_tmux passes through when _SANDBOX=0" {
-    _SANDBOX=0
+@test "_tmux passes through when tmux is enabled" {
+    TK_TMUX_DISABLED=0
     local _called=0
     tmux() { _called=1; }
     _tmux refresh-client -S
     assert_num_eq "$_called" 1
+}
+
+@test "sandbox mode disables every tmux call the library makes, not just _tmux" {
+    TK_TMUX_DISABLED=0
+    _SANDBOX=1
+    _tracker_sandbox_wire
+    assert_eq "$TK_TMUX_DISABLED" "1"
+    local _called=0
+    tmux() { _called=1; }
+    # tk_opt goes through tk_tmux too, which the old per-call check in _tmux did
+    # not cover: 38 bare `tmux` calls in tracker.sh bypassed it.
+    assert_eq "$(tk_opt "@agent-tracker-color-idle" "fallback")" "fallback"
+    assert_num_eq "$_called" 0
+    _SANDBOX=0
+    TK_TMUX_DISABLED=0
+}
+
+@test "sandbox wiring leaves tmux enabled outside the sandbox" {
+    TK_TMUX_DISABLED=0
+    _SANDBOX=0
+    _tracker_sandbox_wire
+    assert_eq "$TK_TMUX_DISABLED" "0"
 }
 
 @test "cmd_init sandbox creates DB with IF NOT EXISTS" {
@@ -2048,17 +2084,29 @@ SCRIPT
     _SANDBOX=0
 }
 
-@test "_load_config_fast returns hardcoded defaults in sandbox" {
-    _SANDBOX=1
+# The sandbox branch used to carry a second, hand-written copy of the defaults, and
+# it had already drifted from the real list by omitting KEYBINDING, the three key
+# bindings and SHOW_PROJECT. With tmux disabled every spec falls back to its own
+# default, so there is one list again. helpers.sh is sourced here because the shared
+# harness stubs load_config away, and this test is specifically about the real one.
+@test "config falls back to its spec defaults when tmux is unreachable (sandbox)" {
+    # shellcheck source=../scripts/helpers.sh
+    source "$SCRIPTS_DIR/helpers.sh"
+    TK_TMUX_DISABLED=1
     unset COLOR_WORKING
-    _load_config_fast
+    load_config
     assert_eq "$COLOR_WORKING" "black"
     assert_eq "$ICON_WORKING" "*"
     assert_eq "$ICON_BLOCKED" "!"
     assert_eq "$DEBUG_LOG" "0"
     assert_eq "$_HAS_HOOKS" "0"
     assert_eq "$COMPLETED_DELAY" "3"
-    _SANDBOX=0
+    # The four the hardcoded copy had forgotten.
+    assert_eq "$KEYBINDING" "a"
+    assert_eq "$ITEMS_PER_PAGE" "10"
+    assert_eq "$KEY_QUIT" "q"
+    assert_eq "$SHOW_PROJECT" "0"
+    TK_TMUX_DISABLED=0
 }
 
 @test "cmd_hook auto-inits sandbox DB when missing" {
@@ -2839,3 +2887,71 @@ SCRIPT
 }
 
 
+
+# ── NG-3: config options actually take effect ─────────────────────────
+#
+# _load_config_fast used to source $TRACKER_DIR/config_cache with no staleness
+# check at all, and call load_config only when the file did not exist. So the
+# first hook after install wrote the cache and every later read took it verbatim,
+# forever: `tmux set -g @agent-tracker-color-idle red` never took effect, and
+# neither did any other @agent-tracker-* option, on any machine. Reported by the
+# first external consumer of the toolkit.
+#
+# The planted cache below is deliberately VALID (correct format marker, parses
+# cleanly) and only stale. That leaves the TTL check as the single thing that can
+# produce the right answer, so the test cannot pass for the wrong reason.
+
+@test "NG-3: a stale config cache is rebuilt, so a changed option takes effect" {
+    # shellcheck source=../scripts/helpers.sh
+    source "$SCRIPTS_DIR/helpers.sh"
+    TK_TMUX_DISABLED=0
+    tmux() {
+        case "$*" in
+            "show-options -g") printf '%s\n' "@agent-tracker-color-idle red" ;;
+            *) : ;;
+        esac
+    }
+    local cc="$TRACKER_DIR/config_cache"
+    printf '%s\n' "# tk-config v1 agent-tracker" "COLOR_IDLE='black'" "COLOR_WORKING='black'" > "$cc"
+    touch -t 200001010000 "$cc"
+
+    unset COLOR_WORKING COLOR_IDLE
+    _load_config_fast
+    assert_eq "$COLOR_IDLE" "red"
+}
+
+@test "NG-3: a fresh config cache is still used, so the TTL is a TTL" {
+    # shellcheck source=../scripts/helpers.sh
+    source "$SCRIPTS_DIR/helpers.sh"
+    TK_TMUX_DISABLED=0
+    tmux() {
+        case "$*" in
+            "show-options -g") printf '%s\n' "@agent-tracker-color-idle red" ;;
+            *) : ;;
+        esac
+    }
+    local cc="$TRACKER_DIR/config_cache"
+    printf '%s\n' "# tk-config v1 agent-tracker" "COLOR_IDLE='black'" "COLOR_WORKING='black'" > "$cc"
+
+    unset COLOR_WORKING COLOR_IDLE
+    _load_config_fast
+    assert_eq "$COLOR_IDLE" "black"
+}
+
+@test "NG-3: a cache written by a different namespace is not sourced" {
+    # shellcheck source=../scripts/helpers.sh
+    source "$SCRIPTS_DIR/helpers.sh"
+    TK_TMUX_DISABLED=0
+    tmux() {
+        case "$*" in
+            "show-options -g") printf '%s\n' "@agent-tracker-color-idle red" ;;
+            *) : ;;
+        esac
+    }
+    local cc="$TRACKER_DIR/config_cache"
+    printf '%s\n' "# tk-config v1 agent-mesh" "COLOR_IDLE='black'" "COLOR_WORKING='black'" > "$cc"
+
+    unset COLOR_WORKING COLOR_IDLE
+    _load_config_fast
+    assert_eq "$COLOR_IDLE" "red"
+}

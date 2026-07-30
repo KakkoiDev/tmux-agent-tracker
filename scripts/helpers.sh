@@ -1,21 +1,37 @@
 #!/usr/bin/env bash
-# helpers.sh - Config loading and tmux helpers for tmux-agent-tracker
+# helpers.sh - a shim over the vendored tmux-toolkit.
+#
+# _file_mtime, get_tmux_option and check_tmux_version here were byte-identical to
+# the copies in tmux-agent-resumer and tmux-agent-mesh (the resumer's file was
+# lifted from this one), and load_config was the same cache architecture written
+# four times. They now delegate to lib/, so a fix lands once.
+#
+# The old names are kept: tracker.sh, agent-tracker.tmux and install.sh call them
+# at ~90 sites, and renaming those is a separate change from extracting them.
+# Every signature and return value is unchanged.
+#
+# _has_agent_child and _agent_client_type stay local: they belong together in a
+# future lib/identity.sh, which is not built yet.
 
 # ── Plugin directory resolution ──────────────────────────────────────
 
 if [[ -z "${AGENT_TRACKER_PLUGIN_DIR:-}" ]]; then
     AGENT_TRACKER_PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
+# shellcheck disable=SC2034  # read by tracker.sh and agent-tracker.tmux, which source this file
 SCRIPTS_DIR="$AGENT_TRACKER_PLUGIN_DIR/scripts"
+
+# shellcheck source=../lib/toolkit.sh
+source "$AGENT_TRACKER_PLUGIN_DIR/lib/toolkit.sh"
+tk_require_version 0.2.0
+
+# tk_init is deferred to load_config: tracker.sh sources this file before it
+# resolves TRACKER_DIR, so the data dir is not knowable yet at source time.
+_tracker_tk_init() { tk_init agent-tracker "${TRACKER_DIR:-$HOME/.tmux-agent-tracker}"; }
 
 # ── platform helpers ──────────────────────────────────────────────────
 
-_file_mtime() {
-    case "$(uname)" in
-        Darwin) stat -f %m "$1" ;;
-        *)      stat -c %Y "$1" ;;
-    esac
-}
+_file_mtime() { tk_mtime "$1"; }
 
 # Check if a shell process has a Claude/Codex/Gemini/Deerbox/Pi child.
 # macOS pgrep -P silently fails for processes that rename argv[0],
@@ -104,131 +120,68 @@ _agent_client_type() {
 
 # ── tmux option helpers ──────────────────────────────────────────────
 
-get_tmux_option() {
-    local option="$1" default="${2:-}"
-    local value
-    value=$(tmux show-option -gqv "$option" 2>/dev/null) || true
-    printf '%s' "${value:-$default}"
-}
+get_tmux_option() { tk_opt "$1" "${2:-}"; }
 
 # ── config loading ───────────────────────────────────────────────────
 
-KEYBINDING=""
-ITEMS_PER_PAGE=""
-KEY_NEXT=""
-KEY_PREV=""
-KEY_QUIT=""
-COLOR_WORKING=""
-COLOR_BLOCKED=""
-COLOR_IDLE=""
-COLOR_COMPLETED=""
-SHOW_PROJECT=""
-ICON_IDLE=""
-ICON_WORKING=""
-ICON_COMPLETED=""
-ICON_BLOCKED=""
-COMPLETED_DELAY=""
-DEBUG_LOG=""
-HOOK_ON_WORKING=""
-HOOK_ON_COMPLETED=""
-HOOK_ON_BLOCKED=""
-HOOK_ON_IDLE=""
-HOOK_ON_TRANSITION=""
-_HAS_HOOKS=""
+# Declared so tracker.sh, agent-tracker.tmux and install.sh can read them under
+# `set -u` before load_config has run. One `declare` rather than 23 assignments,
+# so a single SC2034 directive covers all of them: the writes are invisible to
+# the linter because tk_config_load assigns through tk_opt_into, which has to be
+# an eval since bash 3.2 has no namerefs.
+#
+# MAX_NAME_LENGTH was missing from the list this replaces even though
+# load_config assigned it, so `set -u` could bite any caller that read it before
+# the first load.
+# shellcheck disable=SC2034
+declare KEYBINDING="" ITEMS_PER_PAGE="" KEY_NEXT="" KEY_PREV="" KEY_QUIT="" \
+        COLOR_WORKING="" COLOR_BLOCKED="" COLOR_IDLE="" COLOR_COMPLETED="" \
+        SHOW_PROJECT="" MAX_NAME_LENGTH="" ICON_IDLE="" ICON_WORKING="" \
+        ICON_COMPLETED="" ICON_BLOCKED="" COMPLETED_DELAY="" DEBUG_LOG="" \
+        HOOK_ON_WORKING="" HOOK_ON_COMPLETED="" HOOK_ON_BLOCKED="" \
+        HOOK_ON_IDLE="" HOOK_ON_TRANSITION="" _HAS_HOOKS=""
+
+_TRACKER_CONFIG_SPECS=(
+    'KEYBINDING:@agent-tracker-keybinding:a'
+    'ITEMS_PER_PAGE:@agent-tracker-items-per-page:10'
+    'KEY_NEXT:@agent-tracker-key-next:i'
+    'KEY_PREV:@agent-tracker-key-prev:o'
+    'KEY_QUIT:@agent-tracker-key-quit:q'
+    'COLOR_WORKING:@agent-tracker-color-working:black'
+    'COLOR_BLOCKED:@agent-tracker-color-blocked:black'
+    'COLOR_IDLE:@agent-tracker-color-idle:black'
+    'COLOR_COMPLETED:@agent-tracker-color-completed:black'
+    'SHOW_PROJECT:@agent-tracker-show-project:0'
+    'MAX_NAME_LENGTH:@agent-tracker-max-name-length:40'
+    'ICON_IDLE:@agent-tracker-icon-idle:.'
+    'ICON_WORKING:@agent-tracker-icon-working:*'
+    'ICON_COMPLETED:@agent-tracker-icon-completed:+'
+    'ICON_BLOCKED:@agent-tracker-icon-blocked:!'
+    'COMPLETED_DELAY:@agent-tracker-completed-delay:3'
+    'DEBUG_LOG:@agent-tracker-debug-log:0'
+    'HOOK_ON_WORKING:@agent-tracker-on-working:'
+    'HOOK_ON_COMPLETED:@agent-tracker-on-completed:'
+    'HOOK_ON_BLOCKED:@agent-tracker-on-blocked:'
+    'HOOK_ON_IDLE:@agent-tracker-on-idle:'
+    'HOOK_ON_TRANSITION:@agent-tracker-on-transition:'
+)
 
 load_config() {
-    local cache="${TRACKER_DIR:-$HOME/.tmux-agent-tracker}/config_cache"
-
-    # Use cache if fresh (< 60s) — shared across all hook invocations
-    if [[ -f "$cache" ]]; then
-        local age now
-        now=$(date +%s)
-        age=$(( now - $(_file_mtime "$cache" 2>/dev/null || echo 0) ))
-        if [[ "$age" -lt 60 ]]; then
-            source "$cache"
-            return
-        fi
-    fi
-
-    KEYBINDING=$(get_tmux_option "@agent-tracker-keybinding" "a")
-    ITEMS_PER_PAGE=$(get_tmux_option "@agent-tracker-items-per-page" "10")
-    KEY_NEXT=$(get_tmux_option "@agent-tracker-key-next" "i")
-    KEY_PREV=$(get_tmux_option "@agent-tracker-key-prev" "o")
-    KEY_QUIT=$(get_tmux_option "@agent-tracker-key-quit" "q")
-    COLOR_WORKING=$(get_tmux_option "@agent-tracker-color-working" "black")
-    COLOR_BLOCKED=$(get_tmux_option "@agent-tracker-color-blocked" "black")
-    COLOR_IDLE=$(get_tmux_option "@agent-tracker-color-idle" "black")
-    COLOR_COMPLETED=$(get_tmux_option "@agent-tracker-color-completed" "black")
-    SHOW_PROJECT=$(get_tmux_option "@agent-tracker-show-project" "0")
-    MAX_NAME_LENGTH=$(get_tmux_option "@agent-tracker-max-name-length" "40")
-    ICON_IDLE=$(get_tmux_option "@agent-tracker-icon-idle" ".")
-    ICON_WORKING=$(get_tmux_option "@agent-tracker-icon-working" "*")
-    ICON_COMPLETED=$(get_tmux_option "@agent-tracker-icon-completed" "+")
-    ICON_BLOCKED=$(get_tmux_option "@agent-tracker-icon-blocked" "!")
-    COMPLETED_DELAY=$(get_tmux_option "@agent-tracker-completed-delay" "3")
-    DEBUG_LOG=$(get_tmux_option "@agent-tracker-debug-log" "0")
-    HOOK_ON_WORKING=$(get_tmux_option "@agent-tracker-on-working" "")
-    HOOK_ON_COMPLETED=$(get_tmux_option "@agent-tracker-on-completed" "")
-    HOOK_ON_BLOCKED=$(get_tmux_option "@agent-tracker-on-blocked" "")
-    HOOK_ON_IDLE=$(get_tmux_option "@agent-tracker-on-idle" "")
-    HOOK_ON_TRANSITION=$(get_tmux_option "@agent-tracker-on-transition" "")
-    if [[ -n "$HOOK_ON_WORKING" || -n "$HOOK_ON_COMPLETED" || -n "$HOOK_ON_BLOCKED" || -n "$HOOK_ON_IDLE" || -n "$HOOK_ON_TRANSITION" ]]; then
+    _tracker_tk_init
+    tk_config_load agent-tracker 60 "${_TRACKER_CONFIG_SPECS[@]}"
+    # Derived, not an option, so it is recomputed on every call instead of being
+    # written into the cache. tk_config_load only round-trips the specs, so a
+    # cache hit would otherwise leave this empty and _fire_transition_hook would
+    # read `${_HAS_HOOKS:-0}` as 0 and silently stop firing user hooks.
+    if [[ -n "$HOOK_ON_WORKING$HOOK_ON_COMPLETED$HOOK_ON_BLOCKED$HOOK_ON_IDLE$HOOK_ON_TRANSITION" ]]; then
         _HAS_HOOKS=1
     else
         _HAS_HOOKS=0
     fi
-
-    # Atomic write — safe for concurrent hook invocations
-    cat > "${cache}.tmp" <<EOF
-KEYBINDING='$KEYBINDING'
-ITEMS_PER_PAGE='$ITEMS_PER_PAGE'
-KEY_NEXT='$KEY_NEXT'
-KEY_PREV='$KEY_PREV'
-KEY_QUIT='$KEY_QUIT'
-COLOR_WORKING='$COLOR_WORKING'
-COLOR_BLOCKED='$COLOR_BLOCKED'
-COLOR_IDLE='$COLOR_IDLE'
-COLOR_COMPLETED='$COLOR_COMPLETED'
-SHOW_PROJECT='$SHOW_PROJECT'
-MAX_NAME_LENGTH='$MAX_NAME_LENGTH'
-ICON_IDLE='$ICON_IDLE'
-ICON_WORKING='$ICON_WORKING'
-ICON_COMPLETED='$ICON_COMPLETED'
-ICON_BLOCKED='$ICON_BLOCKED'
-COMPLETED_DELAY='$COMPLETED_DELAY'
-DEBUG_LOG='$DEBUG_LOG'
-HOOK_ON_WORKING='$HOOK_ON_WORKING'
-HOOK_ON_COMPLETED='$HOOK_ON_COMPLETED'
-HOOK_ON_BLOCKED='$HOOK_ON_BLOCKED'
-HOOK_ON_IDLE='$HOOK_ON_IDLE'
-HOOK_ON_TRANSITION='$HOOK_ON_TRANSITION'
-_HAS_HOOKS='$_HAS_HOOKS'
-EOF
-    mv -f "${cache}.tmp" "$cache"
 }
 
 # ── version check ────────────────────────────────────────────────────
 
-check_tmux_version() {
-    local required="${1:-3.0}"
-    local current
-    current=$(tmux -V 2>/dev/null | sed 's/[^0-9.]//g') || return 1
-    [[ -z "$current" ]] && return 1
+check_tmux_version() { tk_vers_ge "${1:-3.0}"; }
 
-    local cur_major cur_minor req_major req_minor
-    cur_major="${current%%.*}"
-    cur_minor="${current#*.}"; cur_minor="${cur_minor%%.*}"
-    req_major="${required%%.*}"
-    req_minor="${required#*.}"; req_minor="${req_minor%%.*}"
-
-    if [[ "$cur_major" -gt "$req_major" ]]; then return 0; fi
-    if [[ "$cur_major" -eq "$req_major" && "$cur_minor" -ge "$req_minor" ]]; then return 0; fi
-    return 1
-}
-
-ensure_tmux_version() {
-    if ! check_tmux_version "3.0"; then
-        echo "tmux-agent-tracker requires tmux 3.0+" >&2
-        return 1
-    fi
-}
+ensure_tmux_version() { tk_vers_require 3.0 tmux-agent-tracker; }

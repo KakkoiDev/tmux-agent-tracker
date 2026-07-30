@@ -110,6 +110,17 @@ source_tracker_functions() {
         esac
     }
 
+    # The awk below strips every `^source ` line, so tracker.sh's own
+    # `source .../helpers.sh` disappears and with it every tk_* function the body
+    # now calls. Loading the real library here rather than stubbing tk_sql and
+    # friends is deliberate: the point of vendoring is that these tests exercise
+    # the shared code, and a stub would let lib/ break without any suite noticing.
+    # tmux() above is still the stub, because tk_tmux invokes `tmux` by name and
+    # bash resolves a function before PATH.
+    # shellcheck source=../lib/toolkit.sh
+    source "$SCRIPTS_DIR/../lib/toolkit.sh"
+    _tracker_tk_init() { tk_init agent-tracker "${TRACKER_DIR:-$HOME/.tmux-agent-tracker}"; }
+
     # Use awk to strip shebang, set -euo, source line, load_config, and case block
     # Then sed to override path variables with test paths
     eval "$(awk '
