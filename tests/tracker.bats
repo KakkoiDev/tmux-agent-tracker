@@ -16,25 +16,25 @@ teardown() {
 @test "UserPromptSubmit sets status to working" {
     insert_session "s1" "idle" "%1"
     _hook_prompt "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "Stop sets working to completed" {
     insert_session "s1" "working" "%1"
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "Stop sets blocked to completed" {
     insert_session "s1" "blocked" "%1"
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "Stop on idle is no-op" {
     insert_session "s1" "idle" "%1"
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "Stop on completed is no-op" {
@@ -42,10 +42,10 @@ teardown() {
     local before
     before=$(sql "SELECT updated_at FROM sessions WHERE session_id='s1';")
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
     local after
     after=$(sql "SELECT updated_at FROM sessions WHERE session_id='s1';")
-    [[ "$before" == "$after" ]]
+    assert_eq "$before" "$after"
 }
 
 @test "Stop schedules deferred pane-focus-if-active when TMUX_PANE is set" {
@@ -57,8 +57,8 @@ teardown() {
         true
     }
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "completed" ]]
-    [[ "$_tmux_cmds" == *"pane-focus-if-active"* ]]
+    assert_eq "$(get_status s1)" "completed"
+    assert_contains "$_tmux_cmds" "pane-focus-if-active"
 }
 
 @test "pane-focus-if-active clears when pane is focused" {
@@ -71,7 +71,7 @@ teardown() {
     }
     load_config() { true; }
     cmd_pane_focus_if_active "%1"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "pane-focus-if-active is no-op when pane is not focused" {
@@ -83,47 +83,47 @@ teardown() {
         esac
     }
     cmd_pane_focus_if_active "%1"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "Notification sets working to blocked" {
     insert_session "s1" "working" "%1" "unixepoch()-60"
     _hook_notification "s1" '{}'
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
 }
 
 @test "Notification permission_prompt sets working to blocked" {
     insert_session "s1" "working" "%1" "unixepoch()-60"
     __json='{"session_id":"s1","notification_type":"permission_prompt"}'
     _hook_notification "s1"
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
 }
 
 @test "Notification idle_prompt does not set blocked" {
     insert_session "s1" "working" "%1"
     __json='{"session_id":"s1","notification_type":"idle_prompt"}'
     _hook_notification "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "Notification auth_success does not set blocked" {
     insert_session "s1" "working" "%1"
     __json='{"session_id":"s1","notification_type":"auth_success"}'
     _hook_notification "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "Notification ToolPermission sets working to blocked" {
     insert_session "s1" "working" "%1" "unixepoch()-60"
     __json='{"session_id":"s1","notification_type":"ToolPermission"}'
     _hook_notification "s1"
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
 }
 
 @test "PermissionRequest sets working to blocked" {
     insert_session "s1" "working" "%1"
     _hook_permission_request "s1"
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
 }
 
 @test "PermissionRequest no-op when already blocked" {
@@ -134,34 +134,34 @@ teardown() {
     _hook_permission_request "s1"
     local after
     after=$(sql "SELECT updated_at FROM sessions WHERE session_id='s1';")
-    [[ "$(get_status s1)" == "blocked" ]]
-    [[ "$before" == "$after" ]]
+    assert_eq "$(get_status s1)" "blocked"
+    assert_eq "$before" "$after"
 }
 
 @test "PermissionRequest no-op when idle" {
     insert_session "s1" "idle" "%1"
     _hook_permission_request "s1"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "PermissionRequest no-op when completed" {
     insert_session "s1" "completed" "%1"
     _hook_permission_request "s1"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "Stop skips completed when subagents are active" {
     insert_session "s1" "working" "%1"
     sql "UPDATE sessions SET subagent_count=2 WHERE session_id='s1';"
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "Stop sets completed when no subagents active" {
     insert_session "s1" "working" "%1"
     sql "UPDATE sessions SET subagent_count=0 WHERE session_id='s1';"
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 # ── StopFailure / Elicitation dispatch (new events, routed via cmd_hook) ──
@@ -169,38 +169,38 @@ teardown() {
 @test "StopFailure sets working to completed" {
     insert_session "s1" "working" "%1"
     echo '{"session_id":"s1"}' | cmd_hook StopFailure
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "StopFailure sets blocked to completed" {
     insert_session "s1" "blocked" "%1"
     echo '{"session_id":"s1"}' | cmd_hook StopFailure
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "StopFailure skips completed when subagents are active" {
     insert_session "s1" "working" "%1"
     sql "UPDATE sessions SET subagent_count=2 WHERE session_id='s1';"
     echo '{"session_id":"s1"}' | cmd_hook StopFailure
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "Elicitation sets working to blocked" {
     insert_session "s1" "working" "%1"
     echo '{"session_id":"s1"}' | cmd_hook Elicitation
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
 }
 
 @test "Elicitation no-op when idle" {
     insert_session "s1" "idle" "%1"
     echo '{"session_id":"s1"}' | cmd_hook Elicitation
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "ElicitationResult sets blocked to working" {
     insert_session "s1" "blocked" "%1"
     echo '{"session_id":"s1"}' | cmd_hook ElicitationResult
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "SubagentStop decrements subagent count" {
@@ -209,14 +209,14 @@ teardown() {
     _hook_subagent_stop "s1"
     local count
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='s1';")
-    [[ "$count" == "2" ]]
+    assert_eq "$count" "2"
 }
 
 @test "SubagentStop clears blocked to working" {
     insert_session "s1" "blocked" "%1"
     sql "UPDATE sessions SET subagent_count=1 WHERE session_id='s1';"
     _hook_subagent_stop "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "SubagentStop does not go below zero" {
@@ -224,7 +224,7 @@ teardown() {
     _hook_subagent_stop "s1"
     local count
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='s1';")
-    [[ "$count" == "0" ]]
+    assert_eq "$count" "0"
 }
 
 @test "SubagentStart increments count via cmd_hook" {
@@ -232,7 +232,7 @@ teardown() {
     printf '{"session_id":"s1","agent_id":"sub-1","agent_type":"researcher"}' | cmd_hook SubagentStart
     local count
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='s1';")
-    [[ "$count" -eq 1 ]]
+    assert_num_eq "$count" 1
 }
 
 @test "SubagentStart stacks multiple increments" {
@@ -242,7 +242,7 @@ teardown() {
     printf '{"session_id":"s1","agent_id":"sub-3","agent_type":"reviewer"}' | cmd_hook SubagentStart
     local count
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='s1';")
-    [[ "$count" -eq 3 ]]
+    assert_num_eq "$count" 3
 }
 
 @test "SubagentStop via cmd_hook decrements count" {
@@ -251,38 +251,38 @@ teardown() {
     printf '{"session_id":"s1","agent_id":"sub-1","agent_type":"researcher"}' | cmd_hook SubagentStop
     local count
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='s1';")
-    [[ "$count" -eq 1 ]]
+    assert_num_eq "$count" 1
 }
 
 @test "SubagentStop on working keeps working" {
     insert_session "s1" "working" "%1"
     sql "UPDATE sessions SET subagent_count=1 WHERE session_id='s1';"
     _hook_subagent_stop "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "SubagentStop on completed keeps completed" {
     insert_session "s1" "completed" "%1"
     sql "UPDATE sessions SET subagent_count=1 WHERE session_id='s1';"
     _hook_subagent_stop "s1"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "SubagentStop on idle keeps idle" {
     insert_session "s1" "idle" "%1"
     sql "UPDATE sessions SET subagent_count=1 WHERE session_id='s1';"
     _hook_subagent_stop "s1"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "SubagentStart on nonexistent session is safe no-op" {
     printf '{"session_id":"ghost","agent_id":"sub-1","agent_type":"researcher"}' | cmd_hook SubagentStart
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "SubagentStop on nonexistent session is safe no-op" {
     printf '{"session_id":"ghost","agent_id":"sub-1","agent_type":"researcher"}' | cmd_hook SubagentStop
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "SubagentStart does not trigger render (changed=0)" {
@@ -294,7 +294,7 @@ teardown() {
     printf '{"session_id":"s1","agent_id":"sub-1","agent_type":"researcher"}' | cmd_hook SubagentStart
     local after
     after=$(_file_mtime "$CACHE")
-    [[ "$before" == "$after" ]]
+    assert_eq "$before" "$after"
 }
 
 @test "Full subagent lifecycle: Stop deferred then completes" {
@@ -303,52 +303,52 @@ teardown() {
 
     # Stop while subagents active - skipped
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     # First subagent stops
     _hook_subagent_stop "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
     local count
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='s1';")
-    [[ "$count" -eq 1 ]]
+    assert_num_eq "$count" 1
 
     # Second subagent stops
     _hook_subagent_stop "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='s1';")
-    [[ "$count" -eq 0 ]]
+    assert_num_eq "$count" 0
 
     # Real Stop now - completes
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "Full subagent lifecycle via cmd_hook dispatch" {
     _integration_mock "%1"
     echo '{"session_id":"s1","cwd":"/tmp/test"}' | cmd_hook SessionStart
     echo '{"session_id":"s1"}' | cmd_hook UserPromptSubmit
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     # Spawn 2 subagents
     echo '{"session_id":"s1","agent_id":"sub-1","agent_type":"worker"}' | cmd_hook SubagentStart
     echo '{"session_id":"s1","agent_id":"sub-2","agent_type":"worker"}' | cmd_hook SubagentStart
     local count
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='s1';")
-    [[ "$count" -eq 2 ]]
+    assert_num_eq "$count" 2
 
     # Stop deferred
     echo '{"session_id":"s1"}' | cmd_hook Stop
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     # Subagents finish
     echo '{"session_id":"s1","agent_id":"sub-1","agent_type":"worker"}' | cmd_hook SubagentStop
     echo '{"session_id":"s1","agent_id":"sub-2","agent_type":"worker"}' | cmd_hook SubagentStop
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='s1';")
-    [[ "$count" -eq 0 ]]
+    assert_num_eq "$count" 0
 
     # Real Stop
     echo '{"session_id":"s1"}' | cmd_hook Stop
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "Render sums task_count across multiple completed sessions" {
@@ -359,30 +359,30 @@ teardown() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"5+"* ]]
+    assert_contains "$out" "5+"
 }
 
 @test "PostToolUseFailure transitions blocked to working" {
     insert_session "s1" "blocked" "%1"
     _hook_post_tool "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "Notification does not set idle to blocked" {
     insert_session "s1" "idle" "%1"
     _hook_notification "s1" '{}'
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "Notification does not re-block completed session" {
     insert_session "s1" "working" "%1"
     _hook_stop "s1"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
     _hook_notification "s1" '{}'
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
     _render_cache
-    [[ "$(cat "$CACHE")" == *"1+"* ]]
-    [[ "$(cat "$CACHE")" == *"0!"* ]]
+    assert_contains "$(cat "$CACHE")" "1+"
+    assert_contains "$(cat "$CACHE")" "0!"
 }
 
 @test "Notification does not reset blocked timer" {
@@ -392,7 +392,7 @@ teardown() {
     local ts
     ts=$(sql "SELECT updated_at FROM sessions WHERE session_id='s1';")
     # updated_at should still be ~300s ago, not reset
-    [[ "$ts" -lt "$(( $(date +%s) - 200 ))" ]]
+    assert_num_lt "$ts" "$(( $(date +%s) - 200 ))"
 }
 
 @test "Late Notification does not re-block recently unblocked session" {
@@ -400,32 +400,32 @@ teardown() {
     # Then late Notification arrives (4-41s delay) and should NOT re-block.
     insert_session "s1" "working" "%1"
     _hook_permission_request "s1"
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
     # User approves, PostToolUse clears it
     _hook_post_tool "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
     # Late Notification arrives - should NOT re-block (updated_at too recent)
     __json='{"session_id":"s1","notification_type":"permission_prompt"}'
     _hook_notification "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "PostToolUse sets non-working to working" {
     insert_session "s1" "idle" "%1"
     _hook_post_tool "s1" '{}'
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "PostToolUse keeps working as working" {
     insert_session "s1" "working" "%1"
     _hook_post_tool "s1" '{}'
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "TeammateIdle sets status to idle" {
     insert_session "t1" "working" "%1"
     _hook_teammate_idle '{"teammate_id":"t1"}'
-    [[ "$(get_status t1)" == "idle" ]]
+    assert_eq "$(get_status t1)" "idle"
 }
 
 # ── SessionEnd cleanup ───────────────────────────────────────────────
@@ -433,7 +433,7 @@ teardown() {
 @test "SessionEnd deletes the session" {
     insert_session "s1" "working" "%1"
     sql "DELETE FROM sessions WHERE session_id='s1';"
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 # ── Subagent preservation ────────────────────────────────────────────
@@ -446,9 +446,9 @@ teardown() {
     tmux() { echo "test:0.0"; }
 
     _ensure_session "new-main" '{"cwd":"/tmp/test"}'
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ -z "$(get_status old-main)" ]]
-    [[ "$(get_status new-main)" == "working" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_empty "$(get_status old-main)"
+    assert_eq "$(get_status new-main)" "working"
 }
 
 # ── Scan deduplication ───────────────────────────────────────────────
@@ -460,8 +460,8 @@ teardown() {
          (session_id, status, cwd, project_name, tmux_pane)
          SELECT 'scan-%5', 'idle', '/tmp/test', 'test', '%5'
          WHERE NOT EXISTS (SELECT 1 FROM sessions WHERE tmux_pane='%5');"
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status hook-s1)" == "working" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status hook-s1)" "working"
 }
 
 @test "scan conditional INSERT succeeds when no session owns pane" {
@@ -469,8 +469,8 @@ teardown() {
          (session_id, status, cwd, project_name, tmux_pane)
          SELECT 'scan-%6', 'idle', '/tmp/test', 'test', '%6'
          WHERE NOT EXISTS (SELECT 1 FROM sessions WHERE tmux_pane='%6');"
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status 'scan-%6')" == "idle" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status 'scan-%6')" "idle"
 }
 
 # ── Reap dead logic ─────────────────────────────────────────────────
@@ -489,8 +489,8 @@ teardown() {
     _has_agent_child() { return 0; }
 
     _reap_dead
-    [[ "$(get_status s1)" == "working" ]]
-    [[ -z "$(get_status s2)" ]]
+    assert_eq "$(get_status s1)" "working"
+    assert_empty "$(get_status s2)"
 }
 
 @test "_reap_dead keeps sessions with live panes and claude process" {
@@ -506,7 +506,7 @@ teardown() {
     _has_agent_child() { return 0; }
 
     _reap_dead
-    [[ "$(count_sessions)" -eq 2 ]]
+    assert_num_eq "$(count_sessions)" 2
 }
 
 @test "_reap_dead skips sessions without tmux_pane" {
@@ -521,7 +521,7 @@ teardown() {
     _has_agent_child() { return 0; }
 
     _reap_dead
-    [[ "$(count_sessions)" -eq 1 ]]
+    assert_num_eq "$(count_sessions)" 1
 }
 
 @test "_reap_dead cleans up working sessions when Claude process is gone" {
@@ -537,8 +537,8 @@ teardown() {
     _has_agent_child() { return 1; }
 
     _reap_dead
-    [[ -z "$(get_status s1)" ]]
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_empty "$(get_status s1)"
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "_reap_dead removes stale paneless sessions" {
@@ -558,8 +558,8 @@ teardown() {
     _has_agent_child() { return 0; }
 
     _reap_dead
-    [[ -z "$(get_status no-pane)" ]]
-    [[ "$(get_status fresh-no-pane)" == "working" ]]
+    assert_empty "$(get_status no-pane)"
+    assert_eq "$(get_status fresh-no-pane)" "working"
 }
 
 @test "_reap_dead throttle prevents second call within 10s" {
@@ -574,14 +574,14 @@ teardown() {
     _has_agent_child() { return 0; }
 
     _reap_dead
-    [[ -f "$TRACKER_DIR/.last_reap" ]]
+    assert_file "$TRACKER_DIR/.last_reap"
 
     # Insert a dead-pane session after first reap
     insert_session "s2" "working" "%200"
 
     # Second call within 10s should be throttled — s2 survives
     _reap_dead
-    [[ "$(get_status s2)" == "working" ]]
+    assert_eq "$(get_status s2)" "working"
 }
 
 @test "_reap_dead deletes idle sessions without agent process" {
@@ -596,7 +596,7 @@ teardown() {
     _has_agent_child() { return 1; }
 
     _reap_dead
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "_reap_dead keeps idle sessions when agent process exists" {
@@ -611,7 +611,7 @@ teardown() {
     _has_agent_child() { return 0; }
 
     _reap_dead
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 # ── Cache rendering ──────────────────────────────────────────────────
@@ -622,7 +622,7 @@ teardown() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == "#[fg=black]1.#[default] #[fg=black]1*#[default] #[fg=black]0+#[default] #[fg=black]0!#[default]" ]]
+    assert_eq "$out" "#[fg=black]1.#[default] #[fg=black]1*#[default] #[fg=black]0+#[default] #[fg=black]0!#[default]"
 }
 
 @test "_render_cache produces correct format with blocked" {
@@ -633,8 +633,8 @@ teardown() {
     local out
     out=$(cat "$CACHE")
     # Should contain "1!5m" (approximately)
-    [[ "$out" == *"1!"* ]]
-    [[ "$out" == *"m#[default]"* ]]
+    assert_contains "$out" "1!"
+    assert_contains "$out" "m#[default]"
 }
 
 @test "_render_cache counts multiple statuses correctly" {
@@ -648,9 +648,9 @@ teardown() {
     local out
     out=$(cat "$CACHE")
     # 3 idle, 2 working, 1 blocked
-    [[ "$out" == *"3."* ]]
-    [[ "$out" == *"2*"* ]]
-    [[ "$out" == *"1!"* ]]
+    assert_contains "$out" "3."
+    assert_contains "$out" "2*"
+    assert_contains "$out" "1!"
 }
 
 # ── Blocked timer ────────────────────────────────────────────────────
@@ -661,7 +661,7 @@ teardown() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1!3m"* ]]
+    assert_contains "$out" "1!3m"
 }
 
 @test "blocked timer shows hours for 60+ minutes" {
@@ -670,7 +670,7 @@ teardown() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1!2h"* ]]
+    assert_contains "$out" "1!2h"
 }
 
 @test "SHOW_PROJECT=1 includes project name in cache" {
@@ -680,7 +680,7 @@ teardown() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"@myapp"* ]]
+    assert_contains "$out" "@myapp"
 }
 
 @test "SHOW_PROJECT=0 omits project name from cache" {
@@ -690,7 +690,7 @@ teardown() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" != *"@myapp"* ]]
+    refute_contains "$out" "@myapp"
 }
 
 @test "SHOW_PROJECT prefers blocked session project" {
@@ -702,7 +702,7 @@ teardown() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"@blocked-proj"* ]]
+    assert_contains "$out" "@blocked-proj"
 }
 
 @test "blocked timer no suffix for <1 minute" {
@@ -712,7 +712,7 @@ teardown() {
     local out
     out=$(cat "$CACHE")
     # Should be "1!" with no duration suffix before #[default]
-    [[ "$out" =~ 1!#\[default\] ]]
+    assert_match_re "$out" '1!#\[default\]'
 }
 
 # ── Cache lifecycle (hot-path render) ────────────────────────────────
@@ -722,19 +722,19 @@ teardown() {
     _render_cache
     local before
     before=$(cat "$CACHE")
-    [[ "$before" == *"1!"* ]]
+    assert_contains "$before" "1!"
 
     _hook_post_tool "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
     # __render was set — _write_cache should have been called by cmd_hook
     # but since we call _hook_post_tool directly, we must verify __render
-    [[ -n "$__render" ]]
+    assert_not_empty "$__render"
     _load_config_fast
     _write_cache "$__render"
     local after
     after=$(cat "$CACHE")
-    [[ "$after" == *"1*"* ]]
-    [[ "$after" == *"0!"* ]]
+    assert_contains "$after" "1*"
+    assert_contains "$after" "0!"
 }
 
 @test "Notification updates cache when transitioning working to blocked" {
@@ -742,73 +742,73 @@ teardown() {
     _render_cache
     local before
     before=$(cat "$CACHE")
-    [[ "$before" == *"1*"* ]]
+    assert_contains "$before" "1*"
 
     _hook_notification "s1"
-    [[ "$(get_status s1)" == "blocked" ]]
-    [[ -n "$__render" ]]
+    assert_eq "$(get_status s1)" "blocked"
+    assert_not_empty "$__render"
     _load_config_fast
     _write_cache "$__render"
     local after
     after=$(cat "$CACHE")
-    [[ "$after" == *"1!"* ]]
-    [[ "$after" == *"0*"* ]]
+    assert_contains "$after" "1!"
+    assert_contains "$after" "0*"
 }
 
 @test "Stop clears blocked from cache" {
     insert_session "s1" "blocked" "%1"
     _render_cache
-    [[ "$(cat "$CACHE")" == *"1!"* ]]
+    assert_contains "$(cat "$CACHE")" "1!"
 
     _hook_stop "s1"
     _render_cache
     local after
     after=$(cat "$CACHE")
-    [[ "$after" == *"1+"* ]]
-    [[ "$after" == *"0!"* ]]
+    assert_contains "$after" "1+"
+    assert_contains "$after" "0!"
 }
 
 @test "SessionEnd clears all counts from cache" {
     insert_session "s1" "blocked" "%1"
     _render_cache
-    [[ "$(cat "$CACHE")" == *"1!"* ]]
+    assert_contains "$(cat "$CACHE")" "1!"
 
     sql "DELETE FROM sessions WHERE session_id='s1';"
     _render_cache
     local after
     after=$(cat "$CACHE")
-    [[ "$after" == *"0."* ]]
-    [[ "$after" == *"0*"* ]]
-    [[ "$after" == *"0!"* ]]
+    assert_contains "$after" "0."
+    assert_contains "$after" "0*"
+    assert_contains "$after" "0!"
 }
 
 @test "full lifecycle: blocked -> PostToolUse -> Stop -> cache is clean" {
     insert_session "s1" "blocked" "%1"
     _render_cache
-    [[ "$(cat "$CACHE")" == *"1!"* ]]
+    assert_contains "$(cat "$CACHE")" "1!"
 
     # Transition blocked -> working via PostToolUse
     __changed=1
     __render=""
     _hook_post_tool "s1"
-    [[ -n "$__render" ]]
+    assert_not_empty "$__render"
     _load_config_fast
     _write_cache "$__render"
-    [[ "$(cat "$CACHE")" == *"1*"* ]]
-    [[ "$(cat "$CACHE")" == *"0!"* ]]
+    assert_contains "$(cat "$CACHE")" "1*"
+    assert_contains "$(cat "$CACHE")" "0!"
 
     # Stop -> completed
     _hook_stop "s1"
     _render_cache
-    [[ "$(cat "$CACHE")" == *"1+"* ]]
-    [[ "$(cat "$CACHE")" == *"0!"* ]]
+    assert_contains "$(cat "$CACHE")" "1+"
+    assert_contains "$(cat "$CACHE")" "0!"
 
     # SessionEnd -> deleted
     sql "DELETE FROM sessions WHERE session_id='s1';"
     _render_cache
-    [[ "$(cat "$CACHE")" == *"0."* ]]
-    [[ "$(cat "$CACHE")" == *"0*"* ]]
-    [[ "$(cat "$CACHE")" == *"0!"* ]]
+    assert_contains "$(cat "$CACHE")" "0."
+    assert_contains "$(cat "$CACHE")" "0*"
+    assert_contains "$(cat "$CACHE")" "0!"
 }
 
 # ── cmd_status_bar live timer ────────────────────────────────────────
@@ -827,7 +827,7 @@ teardown() {
 
     local out
     out=$(cmd_status_bar)
-    [[ "$out" == "$cached" ]]
+    assert_eq "$out" "$cached"
 }
 
 @test "cmd_status_bar returns cached output when no blocked" {
@@ -838,14 +838,14 @@ teardown() {
     expected=$(cat "$CACHE")
     local out
     out=$(cmd_status_bar)
-    [[ "$out" == "$expected" ]]
+    assert_eq "$out" "$expected"
 }
 
 # ── sql_esc ──────────────────────────────────────────────────────────
 
 @test "sql_esc escapes single quotes" {
     run sql_esc "it's a test"
-    [[ "$output" == "it''s a test" ]]
+    assert_eq "$output" "it''s a test"
 }
 
 @test "escaped session_id does not match other sessions" {
@@ -854,8 +854,8 @@ teardown() {
     local evil="x'; DELETE FROM sessions;--"
     _hook_prompt "$(sql_esc "$evil")"
     # normal session untouched, evil session not found
-    [[ "$(get_status normal)" == "working" ]]
-    [[ "$(count_sessions)" -eq 1 ]]
+    assert_eq "$(get_status normal)" "working"
+    assert_num_eq "$(count_sessions)" 1
 }
 
 # ── Idle count stability (no flicker) ──────────────────────────────
@@ -866,7 +866,7 @@ teardown() {
     tmux() { echo "test:0.0"; }
     _ensure_session "s1" '{"cwd":"/tmp/test"}' "idle"
     # Fast path: session exists with pane info, no change
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 # ── _json_val ────────────────────────────────────────────────────────
@@ -874,37 +874,37 @@ teardown() {
 @test "_json_val extracts simple string value" {
     local result
     result=$(_json_val '{"session_id":"abc123","cwd":"/tmp"}' "session_id")
-    [[ "$result" == "abc123" ]]
+    assert_eq "$result" "abc123"
 }
 
 @test "_json_val returns empty for missing key" {
     local result
     result=$(_json_val '{"session_id":"abc123"}' "cwd")
-    [[ -z "$result" ]]
+    assert_empty "$result"
 }
 
 @test "_json_val extracts correct key among many" {
     local json='{"subagent_id":"sub1","subagent_type":"researcher","cwd":"/tmp/test"}'
-    [[ "$(_json_val "$json" "subagent_id")" == "sub1" ]]
-    [[ "$(_json_val "$json" "subagent_type")" == "researcher" ]]
-    [[ "$(_json_val "$json" "cwd")" == "/tmp/test" ]]
+    assert_eq "$(_json_val "$json" "subagent_id")" "sub1"
+    assert_eq "$(_json_val "$json" "subagent_type")" "researcher"
+    assert_eq "$(_json_val "$json" "cwd")" "/tmp/test"
 }
 
 @test "_json_val returns empty on empty input" {
     local result
     result=$(_json_val '{}' "session_id")
-    [[ -z "$result" ]]
+    assert_empty "$result"
 }
 
 @test "_json_val handles keys with dots" {
     local json='{"a.b":"dot","ab":"nodot"}'
-    [[ "$(_json_val "$json" "a.b")" == "dot" ]]
+    assert_eq "$(_json_val "$json" "a.b")" "dot"
 }
 
 @test "_json_val does not match partial key via dot wildcard" {
     # With regex impl, "a.b" would match "axb" as dot is any-char
     local json='{"axb":"wrong","a.b":"right"}'
-    [[ "$(_json_val "$json" "a.b")" == "right" ]]
+    assert_eq "$(_json_val "$json" "a.b")" "right"
 }
 
 # ── stdin handling (read -r regression) ──────────────────────────────
@@ -913,20 +913,20 @@ teardown() {
     insert_session "s1" "working" "%1"
     # printf sends JSON without trailing newline — must not be silently dropped
     printf '{"session_id":"s1"}' | cmd_hook "Stop"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "cmd_hook works with JSON having trailing newline" {
     insert_session "s1" "working" "%1"
     echo '{"session_id":"s1"}' | cmd_hook "Stop"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "cmd_hook exits cleanly on empty stdin" {
     insert_session "s1" "working" "%1"
     echo "" | cmd_hook "PostToolUse"
     # Session unchanged — empty JSON has no session_id
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 # ── No-op skip (SELECT changes) ─────────────────────────────────────
@@ -939,7 +939,7 @@ teardown() {
     _hook_post_tool "s1" '{}'
     local after
     after=$(sql "SELECT updated_at FROM sessions WHERE session_id='s1';")
-    [[ "$before" == "$after" ]]
+    assert_eq "$before" "$after"
 }
 
 @test "Notification no-op does not update timestamp" {
@@ -950,7 +950,7 @@ teardown() {
     _hook_notification "s1" '{}'
     local after
     after=$(sql "SELECT updated_at FROM sessions WHERE session_id='s1';")
-    [[ "$before" == "$after" ]]
+    assert_eq "$before" "$after"
 }
 
 # ── Idle count stability (no flicker) ──────────────────────────────
@@ -968,8 +968,8 @@ teardown() {
 
     insert_session "s1" "working" "%1"
     _render_cache
-    [[ -n "$tmux_set_value" ]]
-    [[ "$tmux_set_value" == *"1*"* ]]
+    assert_not_empty "$tmux_set_value"
+    assert_contains "$tmux_set_value" "1*"
 }
 
 @test "cmd_refresh produces no stdout" {
@@ -985,7 +985,7 @@ teardown() {
     }
     local out
     out=$(cmd_refresh)
-    [[ -z "$out" ]]
+    assert_empty "$out"
 }
 
 @test "cmd_refresh updates cache file" {
@@ -1001,9 +1001,9 @@ teardown() {
         esac
     }
     cmd_refresh
-    [[ -f "$CACHE" ]]
-    [[ "$(cat "$CACHE")" == *"1!"* ]]
-    [[ "$(cat "$CACHE")" == *"5m"* ]]
+    assert_file "$CACHE"
+    assert_contains "$(cat "$CACHE")" "1!"
+    assert_contains "$(cat "$CACHE")" "5m"
 }
 
 @test "cmd_refresh skips pane-focus for fresh completed (grace period)" {
@@ -1023,7 +1023,7 @@ teardown() {
     # Completed just now - within grace period
     insert_session "s1" "completed" "%1"
     cmd_refresh
-    [[ "$run_shell_called" -eq 0 ]]
+    assert_num_eq "$run_shell_called" 0
 }
 
 @test "cmd_refresh triggers pane-focus for stale completed (past grace period)" {
@@ -1044,7 +1044,7 @@ teardown() {
     insert_session "s1" "completed" "%1"
     sql "UPDATE sessions SET updated_at = unixepoch() - 20 WHERE session_id='s1';"
     cmd_refresh
-    [[ "$run_shell_called" -eq 1 ]]
+    assert_num_eq "$run_shell_called" 1
 }
 
 @test "cmd_refresh grace period uses tmux status-interval" {
@@ -1065,14 +1065,14 @@ teardown() {
     insert_session "s1" "completed" "%1"
     sql "UPDATE sessions SET updated_at = unixepoch() - 30 WHERE session_id='s1';"
     cmd_refresh
-    [[ "$run_shell_called" -eq 0 ]]
+    assert_num_eq "$run_shell_called" 0
 }
 
 @test "cmd_refresh is no-op without DB" {
     rm -f "$DB"
     local out
     out=$(cmd_refresh)
-    [[ -z "$out" ]]
+    assert_empty "$out"
 }
 
 @test "atomic eviction keeps count stable during pane takeover" {
@@ -1084,10 +1084,10 @@ teardown() {
     _ensure_session "new" '{"cwd":"/tmp/test"}'
     # Total count should be 2 (old evicted, new created, other untouched)
     # Never drops to 1 between DELETE and INSERT
-    [[ "$(count_sessions)" -eq 2 ]]
-    [[ -z "$(get_status old)" ]]
-    [[ "$(get_status new)" == "working" ]]
-    [[ "$(get_status other)" == "idle" ]]
+    assert_num_eq "$(count_sessions)" 2
+    assert_empty "$(get_status old)"
+    assert_eq "$(get_status new)" "working"
+    assert_eq "$(get_status other)" "idle"
 }
 
 # ── Integration tests (full cmd_hook pipeline via stdin) ──────────────
@@ -1110,57 +1110,57 @@ _integration_mock() {
 @test "integration: SessionStart creates idle session" {
     _integration_mock "%1"
     echo '{"session_id":"s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "integration: SessionStart then UserPromptSubmit sets working" {
     _integration_mock "%1"
     echo '{"session_id":"s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
     echo '{"session_id":"s1"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "integration: full lifecycle Start -> Prompt -> PostToolUse -> Stop -> End" {
     _integration_mock "%1"
     echo '{"session_id":"s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 
     echo '{"session_id":"s1"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     echo '{"session_id":"s1","tool_name":"Read"}' | cmd_hook "PostToolUse"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     echo '{"session_id":"s1"}' | cmd_hook "Stop"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 
     echo '{"session_id":"s1"}' | cmd_hook "SessionEnd"
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "integration: Notification permission_prompt sets blocked" {
     insert_session "s1" "working" "%1" "unixepoch()-60"
     echo '{"session_id":"s1","notification_type":"permission_prompt"}' | cmd_hook "Notification"
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
 }
 
 @test "integration: Notification elicitation_dialog sets blocked" {
     insert_session "s1" "working" "%1" "unixepoch()-60"
     echo '{"session_id":"s1","notification_type":"elicitation_dialog"}' | cmd_hook "Notification"
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
 }
 
 @test "integration: Notification ToolPermission sets blocked" {
     insert_session "s1" "working" "%1" "unixepoch()-60"
     echo '{"session_id":"s1","notification_type":"ToolPermission"}' | cmd_hook "Notification"
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
 }
 
 @test "integration: PermissionRequest sets blocked" {
     insert_session "s1" "working" "%1"
     echo '{"session_id":"s1","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp"}}' | cmd_hook "PermissionRequest"
-    [[ "$(get_status s1)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "blocked"
 }
 
 @test "integration: PermissionRequest no-op when already blocked" {
@@ -1171,45 +1171,45 @@ _integration_mock() {
     echo '{"session_id":"s1","tool_name":"Bash"}' | cmd_hook "PermissionRequest"
     local after
     after=$(sql "SELECT updated_at FROM sessions WHERE session_id='s1';")
-    [[ "$(get_status s1)" == "blocked" ]]
-    [[ "$before" == "$after" ]]
+    assert_eq "$(get_status s1)" "blocked"
+    assert_eq "$before" "$after"
 }
 
 @test "integration: blocked then PostToolUse sets working" {
     insert_session "s1" "blocked" "%1"
     echo '{"session_id":"s1","tool_name":"Read"}' | cmd_hook "PostToolUse"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "integration: blocked then PostToolUseFailure sets working" {
     insert_session "s1" "blocked" "%1"
     echo '{"session_id":"s1","tool_name":"Bash"}' | cmd_hook "PostToolUseFailure"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "integration: blocked then UserPromptSubmit sets working" {
     _integration_mock "%1"
     insert_session "s1" "blocked" "%1"
     echo '{"session_id":"s1"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "integration: blocked then Stop sets completed" {
     insert_session "s1" "blocked" "%1"
     echo '{"session_id":"s1"}' | cmd_hook "Stop"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "integration: idle then PostToolUse sets working" {
     insert_session "s1" "idle" "%1"
     echo '{"session_id":"s1","tool_name":"Read"}' | cmd_hook "PostToolUse"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "integration: Notification idle_prompt does not block" {
     insert_session "s1" "working" "%1"
     echo '{"session_id":"s1","notification_type":"idle_prompt"}' | cmd_hook "Notification"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "integration: repeated Notification does not reset timer" {
@@ -1220,22 +1220,22 @@ _integration_mock() {
     echo '{"session_id":"s1","notification_type":"permission_prompt"}' | cmd_hook "Notification"
     local after
     after=$(sql "SELECT updated_at FROM sessions WHERE session_id='s1';")
-    [[ "$before" == "$after" ]]
+    assert_eq "$before" "$after"
 }
 
 @test "integration: SessionStart on existing working session is no-op" {
     _integration_mock "%1"
     insert_session "s1" "working" "%1"
     echo '{"session_id":"s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "integration: pane takeover evicts old session" {
     _integration_mock "%1"
     insert_session "old" "idle" "%1"
     echo '{"session_id":"new","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
-    [[ -z "$(get_status old)" ]]
-    [[ "$(get_status new)" == "idle" ]]
+    assert_empty "$(get_status old)"
+    assert_eq "$(get_status new)" "idle"
 }
 
 # ── Completed status tests ──────────────────────────────────────────
@@ -1244,14 +1244,14 @@ _integration_mock() {
     insert_session "s1" "completed" "%1"
     sql "UPDATE sessions SET tmux_target='test:0.0' WHERE session_id='s1';"
     cmd_goto "test:0.0"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "goto does not change non-completed sessions" {
     insert_session "s1" "working" "%1"
     sql "UPDATE sessions SET tmux_target='test:0.0' WHERE session_id='s1';"
     cmd_goto "test:0.0"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "goto-pane navigates using live name from stable pane id after rename" {
@@ -1275,25 +1275,25 @@ _integration_mock() {
 
     # Navigation must target the LIVE name resolved from the pane, never the
     # stale DB target.
-    [[ "$_nav" == *"switch-client -t newsess"* ]]
-    [[ "$_nav" == *"select-window -t newsess:2"* ]]
-    [[ "$_nav" == *"select-pane -t newsess:2.1"* ]]
-    [[ "$_nav" != *"oldsess"* ]]
+    assert_contains "$_nav" "switch-client -t newsess"
+    assert_contains "$_nav" "select-window -t newsess:2"
+    assert_contains "$_nav" "select-pane -t newsess:2.1"
+    refute_contains "$_nav" "oldsess"
 
     # And the completed→idle clear still happens, keyed on the stable pane.
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "completed → UserPromptSubmit → working" {
     insert_session "s1" "completed" "%1"
     _hook_prompt "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "completed → PostToolUse → working" {
     insert_session "s1" "completed" "%1"
     _hook_post_tool "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "_render_cache counts completed correctly" {
@@ -1304,10 +1304,10 @@ _integration_mock() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1."* ]]    # 1 idle
-    [[ "$out" == *"1*"* ]]    # 1 working
-    [[ "$out" == *"2+"* ]]    # 2 completed
-    [[ "$out" == *"0!"* ]]    # 0 blocked
+    assert_contains "$out" "1." # 1 idle
+    assert_contains "$out" "1*" # 1 working
+    assert_contains "$out" "2+" # 2 completed
+    assert_contains "$out" "0!" # 0 blocked
 }
 
 @test "_reap_dead preserves completed sessions" {
@@ -1322,13 +1322,13 @@ _integration_mock() {
     _has_agent_child() { return 1; }
 
     _reap_dead
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "Notification does not set completed to blocked" {
     insert_session "s1" "completed" "%1"
     _hook_notification "s1" '{}'
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 # ── Pane focus ───────────────────────────────────────────────────────
@@ -1336,13 +1336,13 @@ _integration_mock() {
 @test "cmd_pane_focus clears completed to idle" {
     insert_session "s1" "completed" "%1"
     cmd_pane_focus "%1"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "cmd_pane_focus does not clear completed on different pane" {
     insert_session "s1" "completed" "%1"
     cmd_pane_focus "%2"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 }
 
 @test "cmd_pane_focus is no-op for non-completed sessions" {
@@ -1352,52 +1352,52 @@ _integration_mock() {
     cmd_pane_focus "%1"
     cmd_pane_focus "%2"
     cmd_pane_focus "%3"
-    [[ "$(get_status s1)" == "working" ]]
-    [[ "$(get_status s2)" == "idle" ]]
-    [[ "$(get_status s3)" == "blocked" ]]
+    assert_eq "$(get_status s1)" "working"
+    assert_eq "$(get_status s2)" "idle"
+    assert_eq "$(get_status s3)" "blocked"
 }
 
 @test "cmd_pane_focus is no-op when no DB" {
     rm -f "$DB"
     run cmd_pane_focus "%1"
-    [[ "$status" -eq 0 ]]
+    assert_num_eq "$status" 0
 }
 
 @test "integration: Stop sets completed then goto clears to idle" {
     _integration_mock "%1"
     echo '{"session_id":"s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
     echo '{"session_id":"s1"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     echo '{"session_id":"s1"}' | cmd_hook "Stop"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 
     # Simulate goto — need tmux_target set
     sql "UPDATE sessions SET tmux_target='test:0.0' WHERE session_id='s1';"
     cmd_goto "test:0.0"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 }
 
 @test "integration: full lifecycle with completed" {
     _integration_mock "%1"
     echo '{"session_id":"s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
-    [[ "$(get_status s1)" == "idle" ]]
+    assert_eq "$(get_status s1)" "idle"
 
     echo '{"session_id":"s1"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     echo '{"session_id":"s1"}' | cmd_hook "Stop"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 
     # New prompt resumes from completed
     echo '{"session_id":"s1"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     echo '{"session_id":"s1"}' | cmd_hook "Stop"
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
 
     echo '{"session_id":"s1"}' | cmd_hook "SessionEnd"
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 # ── Configurable icons ───────────────────────────────────────────────
@@ -1414,10 +1414,10 @@ _integration_mock() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1I"* ]]
-    [[ "$out" == *"1W"* ]]
-    [[ "$out" == *"1C"* ]]
-    [[ "$out" == *"1B"* ]]
+    assert_contains "$out" "1I"
+    assert_contains "$out" "1W"
+    assert_contains "$out" "1C"
+    assert_contains "$out" "1B"
 }
 
 @test "custom icons work with blocked timer" {
@@ -1427,7 +1427,7 @@ _integration_mock() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1B3m"* ]]
+    assert_contains "$out" "1B3m"
 }
 
 @test "default icons unchanged when ICON vars unset" {
@@ -1436,10 +1436,10 @@ _integration_mock() {
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1*"* ]]
-    [[ "$out" == *"0."* ]]
-    [[ "$out" == *"0+"* ]]
-    [[ "$out" == *"0!"* ]]
+    assert_contains "$out" "1*"
+    assert_contains "$out" "0."
+    assert_contains "$out" "0+"
+    assert_contains "$out" "0!"
 }
 
 # ── Transition hooks ────────────────────────────────────────────────
@@ -1460,7 +1460,7 @@ SCRIPT
     chmod +x "$HOOK_ON_WORKING"
     _fire_transition_hook "idle" "working" "s1" "myproject"
     wait_for_file "$_hook_log"
-    [[ "$(cat "$_hook_log")" == "idle working s1 myproject" ]]
+    assert_eq "$(cat "$_hook_log")" "idle working s1 myproject"
 }
 
 @test "_fire_transition_hook fires catch-all hook" {
@@ -1475,7 +1475,7 @@ SCRIPT
     chmod +x "$HOOK_ON_TRANSITION"
     _fire_transition_hook "idle" "working" "s1" "myproject"
     wait_for_file "$_hook_log"
-    [[ "$(cat "$_hook_log")" == "idle working s1 myproject" ]]
+    assert_eq "$(cat "$_hook_log")" "idle working s1 myproject"
 }
 
 @test "hook fires on working -> blocked transition" {
@@ -1491,7 +1491,7 @@ SCRIPT
     sql "UPDATE sessions SET project_name='myproject' WHERE session_id='s1';"
     echo '{"session_id":"s1","notification_type":"permission_prompt"}' | cmd_hook "Notification"
     wait_for_file "$_hook_log"
-    [[ "$(cat "$_hook_log")" == "working blocked s1 myproject" ]]
+    assert_eq "$(cat "$_hook_log")" "working blocked s1 myproject"
 }
 
 @test "hook fires on blocked -> working transition" {
@@ -1507,7 +1507,7 @@ SCRIPT
     sql "UPDATE sessions SET project_name='myproject' WHERE session_id='s1';"
     echo '{"session_id":"s1","tool_name":"Read"}' | cmd_hook "PostToolUse"
     wait_for_file "$_hook_log"
-    [[ "$(cat "$_hook_log")" == "blocked working s1 myproject" ]]
+    assert_eq "$(cat "$_hook_log")" "blocked working s1 myproject"
 }
 
 @test "hook does not fire when status unchanged" {
@@ -1522,7 +1522,7 @@ SCRIPT
     insert_session "s1" "working" "%1"
     echo '{"session_id":"s1","tool_name":"Read"}' | cmd_hook "PostToolUse"
     sleep 0.2
-    [[ ! -f "$_hook_log" ]]
+    refute_file "$_hook_log"
 }
 
 @test "hook fires on Stop (working -> completed)" {
@@ -1538,7 +1538,7 @@ SCRIPT
     sql "UPDATE sessions SET project_name='myproject' WHERE session_id='s1';"
     echo '{"session_id":"s1"}' | cmd_hook "Stop"
     wait_for_file "$_hook_log"
-    [[ "$(cat "$_hook_log")" == "working completed s1 myproject" ]]
+    assert_eq "$(cat "$_hook_log")" "working completed s1 myproject"
 }
 
 @test "hook fires on goto (completed -> idle)" {
@@ -1554,7 +1554,7 @@ SCRIPT
     sql "UPDATE sessions SET tmux_target='test:0.0', project_name='myproject' WHERE session_id='s1';"
     cmd_goto "test:0.0"
     wait_for_file "$_hook_log"
-    [[ "$(cat "$_hook_log")" == "completed idle s1 myproject" ]]
+    assert_eq "$(cat "$_hook_log")" "completed idle s1 myproject"
 }
 
 @test "hook fires on pane-focus (completed -> idle)" {
@@ -1570,7 +1570,7 @@ SCRIPT
     sql "UPDATE sessions SET project_name='myproject' WHERE session_id='s1';"
     cmd_pane_focus "%1"
     wait_for_file "$_hook_log"
-    [[ "$(cat "$_hook_log")" == "completed idle s1 myproject" ]]
+    assert_eq "$(cat "$_hook_log")" "completed idle s1 myproject"
 }
 
 # ── Old status capture ──────────────────────────────────────────────
@@ -1581,7 +1581,7 @@ SCRIPT
     __render=""
     __old_status=""
     _hook_post_tool "s1"
-    [[ "$__old_status" == "blocked" ]]
+    assert_eq "$__old_status" "blocked"
 }
 
 @test "_hook_notification captures old status" {
@@ -1591,21 +1591,21 @@ SCRIPT
     __old_status=""
     __json='{}'
     _hook_notification "s1"
-    [[ "$__old_status" == "working" ]]
+    assert_eq "$__old_status" "working"
 }
 
 @test "_hook_stop captures old status" {
     insert_session "s1" "working" "%1"
     __old_status=""
     _hook_stop "s1"
-    [[ "$__old_status" == "working" ]]
+    assert_eq "$__old_status" "working"
 }
 
 @test "_hook_prompt captures old status" {
     insert_session "s1" "idle" "%1"
     __old_status=""
     _hook_prompt "s1"
-    [[ "$__old_status" == "idle" ]]
+    assert_eq "$__old_status" "idle"
 }
 
 # ── Teammate hiding ─────────────────────────────────────────────────
@@ -1615,7 +1615,7 @@ SCRIPT
     _hook_teammate_idle '{"teammate_id":"t1"}'
     local atype
     atype=$(sql "SELECT agent_type FROM sessions WHERE session_id='t1';")
-    [[ "$atype" == "teammate" ]]
+    assert_eq "$atype" "teammate"
 }
 
 @test "_render_cache excludes teammates from counts" {
@@ -1626,7 +1626,7 @@ SCRIPT
     local out
     out=$(cat "$CACHE")
     # Only 1 working (w1), not 2
-    [[ "$out" == *"1*"* ]]
+    assert_contains "$out" "1*"
 }
 
 @test "_render_cache excludes teammate idle from counts" {
@@ -1636,7 +1636,7 @@ SCRIPT
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1."* ]]
+    assert_contains "$out" "1."
 }
 
 @test "cmd_menu excludes teammates from total" {
@@ -1645,7 +1645,7 @@ SCRIPT
     sql "UPDATE sessions SET agent_type='teammate' WHERE session_id='t1';"
     local total
     total=$(sql "SELECT COUNT(*) FROM sessions WHERE COALESCE(agent_type,'')='';")
-    [[ "$total" -eq 1 ]]
+    assert_num_eq "$total" 1
 }
 
 @test "cmd_menu prefixes agent client in labels" {
@@ -1659,7 +1659,7 @@ SCRIPT
         true
     }
     cmd_menu 1
-    [[ "$_menu_capture" == *"[codex] test"* ]]
+    assert_contains "$_menu_capture" "[codex] test"
 }
 
 @test "cmd_menu truncates long names with an ellipsis" {
@@ -1677,7 +1677,7 @@ SCRIPT
     cmd_menu 1
     [[ "$_menu_capture" == *"…"* ]] &&
         [[ "$_menu_capture" != *"$long"* ]] &&
-        [[ "$_menu_capture" == *"[claude] aproject-with-an-absurdly"* ]]
+        assert_contains "$_menu_capture" "[claude] aproject-with-an-absurdly"
 }
 
 @test "cmd_menu leaves short names untruncated" {
@@ -1693,7 +1693,7 @@ SCRIPT
     }
     cmd_menu 1
     [[ "$_menu_capture" != *"…"* ]] &&
-        [[ "$_menu_capture" == *"[claude] test"* ]]
+        assert_contains "$_menu_capture" "[claude] test"
 }
 
 @test "cmd_menu max-name-length 0 disables truncation" {
@@ -1710,34 +1710,34 @@ SCRIPT
     }
     cmd_menu 1
     [[ "$_menu_capture" != *"…"* ]] &&
-        [[ "$_menu_capture" == *"$long"* ]]
+        assert_contains "$_menu_capture" "$long"
 }
 
 @test "cmd_codex_notify marks completed and tags codex client" {
     insert_session "s1" "working" "%1"
     cmd_codex_notify "codex-notify" '{"session_id":"s1","type":"agent-turn-complete","cwd":"/tmp/test"}'
-    [[ "$(get_status s1)" == "completed" ]]
+    assert_eq "$(get_status s1)" "completed"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='s1';")
-    [[ "$client" == "codex" ]]
+    assert_eq "$client" "codex"
 }
 
 @test "cmd_codex_notify falls back to pane-based session id" {
     export TMUX_PANE="%9"
     tmux() { echo "test:0.0"; }
     cmd_codex_notify "codex-notify" '{"type":"agent-turn-complete","cwd":"/tmp/test"}'
-    [[ "$(get_status codex-pane-9)" == "completed" ]]
+    assert_eq "$(get_status codex-pane-9)" "completed"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='codex-pane-9';")
-    [[ "$client" == "codex" ]]
+    assert_eq "$client" "codex"
 }
 
 @test "cmd_codex_notify start-like event transitions new session to working" {
     cmd_codex_notify "codex-notify" '{"session_id":"s2","type":"agent-turn-begin","cwd":"/tmp/test"}'
-    [[ "$(get_status s2)" == "working" ]]
+    assert_eq "$(get_status s2)" "working"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='s2';")
-    [[ "$client" == "codex" ]]
+    assert_eq "$client" "codex"
 }
 
 @test "cmd_codex_notify start-like event fires working transition hook for new session" {
@@ -1751,7 +1751,7 @@ SCRIPT
     chmod +x "$HOOK_ON_WORKING"
     cmd_codex_notify "codex-notify" '{"session_id":"s3","type":"agent-turn-started","cwd":"/tmp/test"}'
     wait_for_file "$_hook_log"
-    [[ "$(cat "$_hook_log")" == *"idle|working|s3|"* ]]
+    assert_contains "$(cat "$_hook_log")" "idle|working|s3|"
 }
 
 @test "_reap_dead still cleans up teammate sessions" {
@@ -1768,7 +1768,7 @@ SCRIPT
     _has_agent_child() { return 0; }
 
     _reap_dead
-    [[ -z "$(get_status t1)" ]]
+    assert_empty "$(get_status t1)"
 }
 
 # ── TaskCompleted ───────────────────────────────────────────────────
@@ -1778,13 +1778,13 @@ SCRIPT
     _hook_task_completed "s1"
     local tc
     tc=$(sql "SELECT task_count FROM sessions WHERE session_id='s1';")
-    [[ "$tc" -eq 1 ]]
+    assert_num_eq "$tc" 1
 }
 
 @test "TaskCompleted does not change status" {
     insert_session "s1" "working" "%1"
     _hook_task_completed "s1"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 }
 
 @test "TaskCompleted increments multiple times" {
@@ -1794,7 +1794,7 @@ SCRIPT
     _hook_task_completed "s1"
     local tc
     tc=$(sql "SELECT task_count FROM sessions WHERE session_id='s1';")
-    [[ "$tc" -eq 3 ]]
+    assert_num_eq "$tc" 3
 }
 
 @test "Render shows task_count in completed slot" {
@@ -1804,7 +1804,7 @@ SCRIPT
     local out
     out=$(cat "$CACHE")
     # 3 tasks completed shows as "3+"
-    [[ "$out" == *"3+"* ]]
+    assert_contains "$out" "3+"
 }
 
 @test "Render does not count task_count for non-completed sessions" {
@@ -1813,7 +1813,7 @@ SCRIPT
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"0+"* ]]
+    assert_contains "$out" "0+"
 }
 
 @test "Render shows 1+ for stopped session with no tasks" {
@@ -1821,21 +1821,21 @@ SCRIPT
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1+"* ]]
+    assert_contains "$out" "1+"
 }
 
 @test "integration: cmd_hook TaskCompleted lifecycle" {
     _integration_mock "%1"
     echo '{"session_id":"s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
     echo '{"session_id":"s1"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     echo '{"session_id":"s1"}' | cmd_hook "TaskCompleted"
     echo '{"session_id":"s1"}' | cmd_hook "TaskCompleted"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
     local tc
     tc=$(sql "SELECT task_count FROM sessions WHERE session_id='s1';")
-    [[ "$tc" -eq 2 ]]
+    assert_num_eq "$tc" 2
 }
 
 @test "UserPromptSubmit resets task_count to zero" {
@@ -1847,12 +1847,12 @@ SCRIPT
     echo '{"session_id":"s1"}' | cmd_hook "TaskCompleted"
     local tc
     tc=$(sql "SELECT task_count FROM sessions WHERE session_id='s1';")
-    [[ "$tc" -eq 3 ]]
+    assert_num_eq "$tc" 3
 
     # New prompt should reset task_count
     echo '{"session_id":"s1"}' | cmd_hook "UserPromptSubmit"
     tc=$(sql "SELECT task_count FROM sessions WHERE session_id='s1';")
-    [[ "$tc" -eq 0 ]]
+    assert_num_eq "$tc" 0
 }
 
 # ── Worktree detection ──────────────────────────────────────────────
@@ -1862,7 +1862,7 @@ SCRIPT
     _ensure_session "w1" "$json" "idle"
     local atype
     atype=$(sql "SELECT agent_type FROM sessions WHERE session_id='w1';")
-    [[ "$atype" == "worktree" ]]
+    assert_eq "$atype" "worktree"
 }
 
 @test "_ensure_session leaves agent_type empty for normal cwd" {
@@ -1870,7 +1870,7 @@ SCRIPT
     _ensure_session "n1" "$json" "idle"
     local atype
     atype=$(sql "SELECT COALESCE(agent_type,'') FROM sessions WHERE session_id='n1';")
-    [[ "$atype" == "" ]]
+    assert_eq "$atype" ""
 }
 
 @test "_render_cache excludes worktree sessions" {
@@ -1881,7 +1881,7 @@ SCRIPT
     local out
     out=$(cat "$CACHE")
     # Only 1 working (w1), not 2
-    [[ "$out" == *"1*"* ]]
+    assert_contains "$out" "1*"
 }
 
 @test "integration: worktree session excluded from counts" {
@@ -1896,7 +1896,7 @@ SCRIPT
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1*"* ]]
+    assert_contains "$out" "1*"
 }
 
 # ── Debug logging ─────────────────────────────────────────────────
@@ -1904,14 +1904,14 @@ SCRIPT
 @test "_debug_log writes to debug.log when DEBUG_LOG=1" {
     export DEBUG_LOG="1"
     _debug_log "test event sid=s1"
-    [[ -f "$TRACKER_DIR/debug.log" ]]
-    [[ "$(cat "$TRACKER_DIR/debug.log")" == *"test event sid=s1"* ]]
+    assert_file "$TRACKER_DIR/debug.log"
+    assert_contains "$(cat "$TRACKER_DIR/debug.log")" "test event sid=s1"
 }
 
 @test "_debug_log is no-op when DEBUG_LOG=0" {
     export DEBUG_LOG="0"
     _debug_log "should not appear"
-    [[ ! -f "$TRACKER_DIR/debug.log" ]]
+    refute_file "$TRACKER_DIR/debug.log"
 }
 
 @test "_debug_log auto-truncates at 1500 lines" {
@@ -1925,57 +1925,57 @@ SCRIPT
     _debug_log "trigger truncation"
     local lc
     lc=$(wc -l < "$_log")
-    [[ "$lc" -le 1001 ]]
+    assert_num_le "$lc" 1001
 }
 
 @test "cmd_hook logs event entry when DEBUG_LOG=1" {
     export DEBUG_LOG="1"
     insert_session "s1" "working" "%1"
     echo '{"session_id":"s1"}' | cmd_hook "PostToolUse"
-    [[ -f "$TRACKER_DIR/debug.log" ]]
-    [[ "$(cat "$TRACKER_DIR/debug.log")" == *"HOOK PostToolUse sid=s1"* ]]
+    assert_file "$TRACKER_DIR/debug.log"
+    assert_contains "$(cat "$TRACKER_DIR/debug.log")" "HOOK PostToolUse sid=s1"
 }
 
 @test "_ensure_session debug log includes [claude] path prefix" {
     export DEBUG_LOG="1"
     local json='{"session_id":"s1","cwd":"/tmp/test"}'
     _ensure_session "s1" "$json" "idle" "claude"
-    [[ -f "$TRACKER_DIR/debug.log" ]]
-    [[ "$(cat "$TRACKER_DIR/debug.log")" == *"path=[claude] /tmp/test"* ]]
+    assert_file "$TRACKER_DIR/debug.log"
+    assert_contains "$(cat "$TRACKER_DIR/debug.log")" "path=[claude] /tmp/test"
 }
 
 @test "cmd_codex_notify debug log includes [codex] path prefix" {
     export DEBUG_LOG="1"
     cmd_codex_notify "codex-notify" '{"session_id":"s1","type":"agent-turn-complete","cwd":"/tmp/test"}'
-    [[ -f "$TRACKER_DIR/debug.log" ]]
-    [[ "$(cat "$TRACKER_DIR/debug.log")" == *"path=[codex] /tmp/test"* ]]
+    assert_file "$TRACKER_DIR/debug.log"
+    assert_contains "$(cat "$TRACKER_DIR/debug.log")" "path=[codex] /tmp/test"
 }
 
 @test "integration: TeammateIdle hides session from render" {
     _integration_mock "%1"
     echo '{"session_id":"s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
     echo '{"session_id":"s1"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status s1)" == "working" ]]
+    assert_eq "$(get_status s1)" "working"
 
     # Teammate starts working
     insert_session "t1" "working" "%2"
     _render_cache
-    [[ "$(cat "$CACHE")" == *"2*"* ]]
+    assert_contains "$(cat "$CACHE")" "2*"
 
     # TeammateIdle fires — teammate hidden from display
     echo '{"session_id":"s1","teammate_id":"t1"}' | cmd_hook "TeammateIdle"
     _render_cache
     local out
     out=$(cat "$CACHE")
-    [[ "$out" == *"1*"* ]]
-    [[ "$out" == *"0."* ]]
+    assert_contains "$out" "1*"
+    assert_contains "$out" "0."
 }
 
 # ── Sandbox support ──────────────────────────────────────────────────
 
 @test "sandbox detection: writable TRACKER_DIR sets _SANDBOX=0" {
     # Normal setup has writable TRACKER_DIR
-    [[ "$_SANDBOX" -eq 0 ]]
+    assert_num_eq "$_SANDBOX" 0
 }
 
 @test "sandbox detection: read-only TRACKER_DIR sets _SANDBOX=1" {
@@ -1988,7 +1988,7 @@ SCRIPT
     DB="$ro_dir/tracker.db"
     CACHE="$ro_dir/status_cache"
     source_tracker_functions
-    [[ "$_SANDBOX" -eq 1 ]]
+    assert_num_eq "$_SANDBOX" 1
     # Restore for teardown
     chmod 755 "$ro_dir"
     rm -rf "$ro_dir"
@@ -2002,7 +2002,7 @@ SCRIPT
     local saved_tracker="$TRACKER_DIR" saved_db="$DB" saved_cache="$CACHE"
     TRACKER_DIR="/tmp/nonexistent-tracker-test-$$"
     source_tracker_functions
-    [[ "$_SANDBOX" -eq 0 ]]
+    assert_num_eq "$_SANDBOX" 0
     TRACKER_DIR="$saved_tracker"
     DB="$saved_db"
     CACHE="$saved_cache"
@@ -2013,7 +2013,7 @@ SCRIPT
     local _called=0
     tmux() { _called=1; }
     _tmux refresh-client -S
-    [[ "$_called" -eq 0 ]]
+    assert_num_eq "$_called" 0
     _SANDBOX=0
 }
 
@@ -2022,18 +2022,18 @@ SCRIPT
     local _called=0
     tmux() { _called=1; }
     _tmux refresh-client -S
-    [[ "$_called" -eq 1 ]]
+    assert_num_eq "$_called" 1
 }
 
 @test "cmd_init sandbox creates DB with IF NOT EXISTS" {
     enable_sandbox_mode
     rm -f "$DB"
     cmd_init
-    [[ -f "$DB" ]]
+    assert_file "$DB"
     # Verify table exists
     local count
     count=$(printf '.timeout 100\n%s\n' "SELECT COUNT(*) FROM sessions;" | sqlite3 "$DB")
-    [[ "$count" -eq 0 ]]
+    assert_num_eq "$count" 0
     _SANDBOX=0
 }
 
@@ -2044,7 +2044,7 @@ SCRIPT
     cmd_init
     local count
     count=$(sql "SELECT COUNT(*) FROM sessions WHERE session_id='existing-1';")
-    [[ "$count" -eq 1 ]]
+    assert_num_eq "$count" 1
     _SANDBOX=0
 }
 
@@ -2052,12 +2052,12 @@ SCRIPT
     _SANDBOX=1
     unset COLOR_WORKING
     _load_config_fast
-    [[ "$COLOR_WORKING" == "black" ]]
-    [[ "$ICON_WORKING" == "*" ]]
-    [[ "$ICON_BLOCKED" == "!" ]]
-    [[ "$DEBUG_LOG" == "0" ]]
-    [[ "$_HAS_HOOKS" == "0" ]]
-    [[ "$COMPLETED_DELAY" == "3" ]]
+    assert_eq "$COLOR_WORKING" "black"
+    assert_eq "$ICON_WORKING" "*"
+    assert_eq "$ICON_BLOCKED" "!"
+    assert_eq "$DEBUG_LOG" "0"
+    assert_eq "$_HAS_HOOKS" "0"
+    assert_eq "$COMPLETED_DELAY" "3"
     _SANDBOX=0
 }
 
@@ -2065,10 +2065,10 @@ SCRIPT
     enable_sandbox_mode
     rm -f "$DB"
     echo '{"session_id":"auto-init-test","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
-    [[ -f "$DB" ]]
+    assert_file "$DB"
     local count
     count=$(sql "SELECT COUNT(*) FROM sessions WHERE session_id='auto-init-test';")
-    [[ "$count" -eq 1 ]]
+    assert_num_eq "$count" 1
     _SANDBOX=0
 }
 
@@ -2077,7 +2077,7 @@ SCRIPT
     echo '{"session_id":"deer-s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='deer-s1';")
-    [[ "$client" == "deer" ]]
+    assert_eq "$client" "deer"
     _SANDBOX=0
 }
 
@@ -2087,7 +2087,7 @@ SCRIPT
     echo '{"session_id":"deer-s2","cwd":"/tmp/test"}' | cmd_hook "UserPromptSubmit"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='deer-s2';")
-    [[ "$client" == "deer" ]]
+    assert_eq "$client" "deer"
     _SANDBOX=0
 }
 
@@ -2096,8 +2096,8 @@ SCRIPT
     # _ensure_schema tries to touch files in TRACKER_DIR - in sandbox
     # those would fail. Verify no error and schema marker files are not created.
     echo '{"session_id":"schema-test","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
-    [[ ! -f "$TRACKER_DIR/.schema_v2" ]]
-    [[ ! -f "$TRACKER_DIR/.schema_v3" ]]
+    refute_file "$TRACKER_DIR/.schema_v2"
+    refute_file "$TRACKER_DIR/.schema_v3"
     _SANDBOX=0
 }
 
@@ -2108,7 +2108,7 @@ SCRIPT
     echo '{"session_id":"reap-trigger","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
     local count
     count=$(sql "SELECT COUNT(*) FROM sessions WHERE session_id='no-reap';")
-    [[ "$count" -eq 1 ]]
+    assert_num_eq "$count" 1
     _SANDBOX=0
 }
 
@@ -2122,10 +2122,10 @@ SCRIPT
 
     local status
     status=$(get_status "sandbox-s1")
-    [[ "$status" == "working" ]]
+    assert_eq "$status" "working"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='sandbox-s1';")
-    [[ "$client" == "deer" ]]
+    assert_eq "$client" "deer"
 }
 
 @test "cmd_merge_sandbox does not overwrite newer host data" {
@@ -2143,7 +2143,7 @@ SCRIPT
     # Host should keep its newer idle status
     local status
     status=$(get_status "flicker-s1")
-    [[ "$status" == "idle" ]]
+    assert_eq "$status" "idle"
 }
 
 @test "cmd_merge_sandbox updates host when sandbox has newer data" {
@@ -2161,7 +2161,7 @@ SCRIPT
     # Host should get the newer working status
     local status
     status=$(get_status "update-s1")
-    [[ "$status" == "working" ]]
+    assert_eq "$status" "working"
 }
 
 @test "cmd_merge_sandbox backfills tmux_target from tmux_pane" {
@@ -2184,7 +2184,7 @@ SCRIPT
 
     local target
     target=$(sql "SELECT tmux_target FROM sessions WHERE session_id='backfill-s1';")
-    [[ "$target" == "main:0.1" ]]
+    assert_eq "$target" "main:0.1"
 }
 
 @test "cmd_merge_sandbox preserves host tmux_pane when sandbox has empty" {
@@ -2199,7 +2199,7 @@ SCRIPT
 
     local pane
     pane=$(sql "SELECT tmux_pane FROM sessions WHERE session_id='pane-keep-s1';")
-    [[ "$pane" == "%5" ]]
+    assert_eq "$pane" "%5"
 }
 
 @test "cmd_merge_sandbox no-op when no sandbox DB exists" {
@@ -2226,37 +2226,37 @@ SCRIPT
     # The key test is that the host data is unchanged
     local status
     status=$(get_status "no-change-s1")
-    [[ "$status" == "idle" ]]
+    assert_eq "$status" "idle"
 }
 
 @test "integration: sandbox session lifecycle" {
     enable_sandbox_mode
     # SessionStart creates idle session with deer client
     echo '{"session_id":"lifecycle-s1","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
-    [[ "$(get_status lifecycle-s1)" == "idle" ]]
+    assert_eq "$(get_status lifecycle-s1)" "idle"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='lifecycle-s1';")
-    [[ "$client" == "deer" ]]
+    assert_eq "$client" "deer"
 
     # UserPromptSubmit transitions to working
     echo '{"session_id":"lifecycle-s1","cwd":"/tmp/test"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status lifecycle-s1)" == "working" ]]
+    assert_eq "$(get_status lifecycle-s1)" "working"
 
     # PostToolUse keeps working
     echo '{"session_id":"lifecycle-s1"}' | cmd_hook "PostToolUse"
-    [[ "$(get_status lifecycle-s1)" == "working" ]]
+    assert_eq "$(get_status lifecycle-s1)" "working"
 
     # PermissionRequest transitions to blocked
     echo '{"session_id":"lifecycle-s1","notification_type":"permission_prompt"}' | cmd_hook "PermissionRequest"
-    [[ "$(get_status lifecycle-s1)" == "blocked" ]]
+    assert_eq "$(get_status lifecycle-s1)" "blocked"
 
     # PostToolUse clears blocked to working
     echo '{"session_id":"lifecycle-s1"}' | cmd_hook "PostToolUse"
-    [[ "$(get_status lifecycle-s1)" == "working" ]]
+    assert_eq "$(get_status lifecycle-s1)" "working"
 
     # Stop transitions to completed
     echo '{"session_id":"lifecycle-s1"}' | cmd_hook "Stop"
-    [[ "$(get_status lifecycle-s1)" == "completed" ]]
+    assert_eq "$(get_status lifecycle-s1)" "completed"
     _SANDBOX=0
 }
 
@@ -2269,17 +2269,17 @@ SCRIPT
 
     # First merge: imports completed session
     cmd_merge_sandbox
-    [[ "$(get_status flicker-int-s1)" == "completed" ]]
+    assert_eq "$(get_status flicker-int-s1)" "completed"
 
     # Host clears completed->idle (simulating pane-focus)
     sql "UPDATE sessions SET status='idle', updated_at=2000
          WHERE session_id='flicker-int-s1';"
-    [[ "$(get_status flicker-int-s1)" == "idle" ]]
+    assert_eq "$(get_status flicker-int-s1)" "idle"
 
     # Second merge: sandbox still has completed at timestamp 1000
     # Host has idle at timestamp 2000 (newer) - must NOT overwrite
     cmd_merge_sandbox
-    [[ "$(get_status flicker-int-s1)" == "idle" ]]
+    assert_eq "$(get_status flicker-int-s1)" "idle"
 }
 
 @test "integration: multiple concurrent sandbox sessions" {
@@ -2288,14 +2288,14 @@ SCRIPT
     echo '{"session_id":"concurrent-s1","cwd":"/tmp/project-a"}' | cmd_hook "SessionStart"
     echo '{"session_id":"concurrent-s2","cwd":"/tmp/project-b"}' | cmd_hook "SessionStart"
 
-    [[ "$(count_sessions)" -eq 2 ]]
-    [[ "$(get_status concurrent-s1)" == "idle" ]]
-    [[ "$(get_status concurrent-s2)" == "idle" ]]
+    assert_num_eq "$(count_sessions)" 2
+    assert_eq "$(get_status concurrent-s1)" "idle"
+    assert_eq "$(get_status concurrent-s2)" "idle"
 
     # Both can transition independently
     echo '{"session_id":"concurrent-s1","cwd":"/tmp/project-a"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status concurrent-s1)" == "working" ]]
-    [[ "$(get_status concurrent-s2)" == "idle" ]]
+    assert_eq "$(get_status concurrent-s1)" "working"
+    assert_eq "$(get_status concurrent-s2)" "idle"
     _SANDBOX=0
 }
 
@@ -2317,14 +2317,14 @@ SCRIPT
 
     cmd_scan
 
-    [[ "$(count_sessions)" -eq 1 ]]
+    assert_num_eq "$(count_sessions)" 1
     local status client pane
     status=$(get_status "scan-%20")
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='scan-%20';")
     pane=$(sql "SELECT tmux_pane FROM sessions WHERE session_id='scan-%20';")
-    [[ "$status" == "idle" ]]
-    [[ "$client" == "deer" ]]
-    [[ "$pane" == "%20" ]]
+    assert_eq "$status" "idle"
+    assert_eq "$client" "deer"
+    assert_eq "$pane" "%20"
 }
 
 @test "cmd_scan detects claude pane and registers claude session" {
@@ -2344,7 +2344,7 @@ SCRIPT
 
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='scan-%21';")
-    [[ "$client" == "claude" ]]
+    assert_eq "$client" "claude"
 }
 
 @test "cmd_scan throttle prevents re-scan within 10s" {
@@ -2361,12 +2361,12 @@ SCRIPT
     _agent_client_type() { echo "deer"; }
 
     cmd_scan
-    [[ "$(count_sessions)" -eq 1 ]]
+    assert_num_eq "$(count_sessions)" 1
 
     # Delete session manually, second scan should be throttled
     sql "DELETE FROM sessions;"
     cmd_scan
-    [[ "$(count_sessions)" -eq 0 ]]  # throttled, no re-insert
+    assert_num_eq "$(count_sessions)" 0 # throttled, no re-insert
 }
 
 @test "cmd_scan skips pane when session already exists for that pane" {
@@ -2387,8 +2387,8 @@ SCRIPT
     cmd_scan
 
     # Only the hook session, no scan session
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status hook-s1)" == "working" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status hook-s1)" "working"
 }
 
 @test "_reap_dead deletes deer session when deerbox exits" {
@@ -2407,7 +2407,7 @@ SCRIPT
     _has_agent_child() { return 1; }  # no agent found
 
     _reap_dead
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "_reap_dead keeps deer session when deerbox is running" {
@@ -2425,8 +2425,8 @@ SCRIPT
     _has_agent_child() { return 0; }  # agent found
 
     _reap_dead
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status 'scan-%25')" == "idle" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status 'scan-%25')" "idle"
 }
 
 @test "_reap_dead deletes deer session when pane is closed" {
@@ -2444,7 +2444,7 @@ SCRIPT
     _has_agent_child() { return 1; }
 
     _reap_dead
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "_reap_dead throttle prevents re-reap within 10s" {
@@ -2461,12 +2461,12 @@ SCRIPT
 
     # First reap succeeds
     _reap_dead
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 
     # Re-insert, second reap should be throttled
     insert_session "scan-%27" "idle" "%27"
     _reap_dead
-    [[ "$(count_sessions)" -eq 1 ]]  # throttled, session survives
+    assert_num_eq "$(count_sessions)" 1 # throttled, session survives
 }
 
 @test "integration: deerbox scan -> run -> exit -> reap lifecycle" {
@@ -2484,18 +2484,18 @@ SCRIPT
     _agent_client_type() { echo "deer"; }
 
     cmd_scan
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status 'scan-%30')" == "idle" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status 'scan-%30')" "idle"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='scan-%30';")
-    [[ "$client" == "deer" ]]
+    assert_eq "$client" "deer"
 
     # Phase 2: deerbox exits, reap cleans up
     rm -f "$TRACKER_DIR/.last_reap"
     _has_agent_child() { return 1; }  # deerbox gone
 
     _reap_dead
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "integration: scan in cmd_refresh detects deerbox" {
@@ -2515,8 +2515,8 @@ SCRIPT
     _agent_client_type() { echo "deer"; }
 
     cmd_refresh
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status 'scan-%31')" == "idle" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status 'scan-%31')" "idle"
 }
 
 @test "integration: reap in cmd_refresh cleans exited deerbox" {
@@ -2541,7 +2541,7 @@ SCRIPT
     cmd_refresh
 
     # Reap ran inside refresh and cleaned up the exited deerbox
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "integration: reap in menu open cleans exited deerbox" {
@@ -2568,7 +2568,7 @@ SCRIPT
 
     # _reap_dead runs before cmd_menu in the menu dispatch
     _reap_dead
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "cmd_merge_sandbox evicts scan duplicate when real session owns same pane" {
@@ -2585,11 +2585,11 @@ SCRIPT
     cmd_merge_sandbox
 
     # scan-%40 should be evicted, only real-uuid-1 remains
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status 'real-uuid-1')" == "working" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status 'real-uuid-1')" "working"
     local gone
     gone=$(sql "SELECT COUNT(*) FROM sessions WHERE session_id='scan-%40';")
-    [[ "$gone" -eq 0 ]]
+    assert_num_eq "$gone" 0
 }
 
 @test "cmd_merge_sandbox keeps scan session when no real session on that pane" {
@@ -2606,9 +2606,9 @@ SCRIPT
     cmd_merge_sandbox
 
     # Both should exist - different panes
-    [[ "$(count_sessions)" -eq 2 ]]
-    [[ "$(get_status 'scan-%41')" == "idle" ]]
-    [[ "$(get_status 'real-uuid-2')" == "working" ]]
+    assert_num_eq "$(count_sessions)" 2
+    assert_eq "$(get_status 'scan-%41')" "idle"
+    assert_eq "$(get_status 'real-uuid-2')" "working"
 }
 
 @test "integration: scan then merge deduplicates to single session per pane" {
@@ -2628,37 +2628,37 @@ SCRIPT
     _agent_client_type() { echo "deer"; }
 
     cmd_scan
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status 'scan-%43')" == "idle" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status 'scan-%43')" "idle"
 
     # Step 2: sandbox hooks fire, real session created in sandbox DB
     insert_session_into "$sandbox_db" "deer-uuid-1" "working" "deer" "%43"
 
     # Step 3: merge imports real session and evicts scan duplicate
     cmd_merge_sandbox
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status 'deer-uuid-1')" == "working" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status 'deer-uuid-1')" "working"
     local scan_gone
     scan_gone=$(sql "SELECT COUNT(*) FROM sessions WHERE session_id='scan-%43';")
-    [[ "$scan_gone" -eq 0 ]]
+    assert_num_eq "$scan_gone" 0
 }
 
 # ── Pi client detection ────────────────────────────────────────────
 
 @test "_detect_agent_client detects pi from session_id path" {
     run _detect_agent_client "/Users/user/.pi/sessions/session-abc.jsonl"
-    [[ "$output" == "pi" ]]
+    assert_eq "$output" "pi"
 }
 
 @test "_detect_agent_client returns claude for UUID session_id" {
     run _detect_agent_client "550e8400-e29b-41d4-a716-446655440000"
-    [[ "$output" == "claude" ]]
+    assert_eq "$output" "claude"
 }
 
 @test "_detect_agent_client returns deer in sandbox" {
     _SANDBOX=1
     run _detect_agent_client "some-id"
-    [[ "$output" == "deer" ]]
+    assert_eq "$output" "deer"
     _SANDBOX=0
 }
 
@@ -2675,7 +2675,7 @@ SCRIPT
     _ensure_session "$sid" '{"cwd":"/tmp/test"}' "idle" "pi"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='$sid';")
-    [[ "$client" == "pi" ]]
+    assert_eq "$client" "pi"
 }
 
 @test "pi session shows in menu with [pi] tag" {
@@ -2685,7 +2685,7 @@ SCRIPT
          VALUES ('$sid', 'working', '/tmp/test', 'test', 'pi', '%45');"
     local client
     client=$(sql "SELECT agent_client FROM sessions WHERE session_id='$sid';")
-    [[ "$client" == "pi" ]]
+    assert_eq "$client" "pi"
 }
 
 @test "pi session counted in render alongside claude sessions" {
@@ -2696,7 +2696,7 @@ SCRIPT
     local out
     out=$(cat "$CACHE")
     # Both pi and claude sessions counted: 2 working
-    [[ "$out" == *"2*"* ]]
+    assert_contains "$out" "2*"
 }
 
 @test "_detect_agent_client detects pi via process tree when TMUX_PANE set" {
@@ -2709,7 +2709,7 @@ SCRIPT
     }
     _agent_client_type() { echo "pi"; }
     run _detect_agent_client "some-uuid"
-    [[ "$output" == "pi" ]]
+    assert_eq "$output" "pi"
 }
 
 @test "_detect_agent_client detects antigravity via process tree when TMUX_PANE set" {
@@ -2722,20 +2722,20 @@ SCRIPT
     }
     _agent_client_type() { echo "antigravity"; }
     run _detect_agent_client "some-uuid"
-    [[ "$output" == "antigravity" ]]
+    assert_eq "$output" "antigravity"
 }
 @test "cmd_hook parses conversationId when session_id is absent" {
     # Use full lifecycle: SessionStart creates session, then UserPromptSubmit uses conversationId
     echo '{"conversationId":"conv-123","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
     echo '{"conversationId":"conv-123","prompt":"testing conversationId"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status conv-123)" == "working" ]]
+    assert_eq "$(get_status conv-123)" "working"
 }
 
 @test "cmd_hook parses conversation_id when session_id is absent" {
     # Use full lifecycle: SessionStart creates session, then UserPromptSubmit uses conversation_id
     echo '{"conversation_id":"conv-456","cwd":"/tmp/test"}' | cmd_hook "SessionStart"
     echo '{"conversation_id":"conv-456","prompt":"testing conversation_id"}' | cmd_hook "UserPromptSubmit"
-    [[ "$(get_status conv-456)" == "working" ]]
+    assert_eq "$(get_status conv-456)" "working"
 }
 
 @test "_agent_client_type detects agy process" {
@@ -2746,7 +2746,7 @@ SCRIPT
     }
     uname() { echo "Darwin"; }
     run _agent_client_type "12345"
-    [[ "$output" == "antigravity" ]]
+    assert_eq "$output" "antigravity"
 }
 
 @test "_agent_client_type detects antigravity process" {
@@ -2757,7 +2757,7 @@ SCRIPT
     }
     uname() { echo "Darwin"; }
     run _agent_client_type "12345"
-    [[ "$output" == "antigravity" ]]
+    assert_eq "$output" "antigravity"
 }
 
 @test "_has_agent_child detects agy process child" {
@@ -2768,7 +2768,7 @@ SCRIPT
     }
     uname() { echo "Darwin"; }
     run _has_agent_child "12345"
-    [[ "$status" -eq 0 ]]
+    assert_num_eq "$status" 0
 }
 
 

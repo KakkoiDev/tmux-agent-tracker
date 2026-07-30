@@ -4,6 +4,8 @@
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TRACKER_SH="$PROJECT_ROOT/scripts/tracker.sh"
 source "$PROJECT_ROOT/scripts/helpers.sh"
+# shellcheck source=./assert.bash
+source "$PROJECT_ROOT/tests/assert.bash"
 
 # ── Per-test isolation ───────────────────────────────────────────────
 

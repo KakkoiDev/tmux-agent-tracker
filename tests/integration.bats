@@ -18,31 +18,31 @@ teardown() {
 
     # SessionStart → idle (fresh session)
     fire_hook SessionStart "$json"
-    [[ "$(get_status "$sid")" == "idle" ]]
+    assert_eq "$(get_status "$sid")" "idle"
 
     # UserPromptSubmit → working
     fire_hook UserPromptSubmit "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
-    [[ "$(read_cache)" == *"1*"* ]]
+    assert_eq "$(get_status "$sid")" "working"
+    assert_contains "$(read_cache)" "1*"
 
     # Notification → blocked
     age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
-    [[ "$(get_status "$sid")" == "blocked" ]]
-    [[ "$(read_cache)" == *"1!"* ]]
+    assert_eq "$(get_status "$sid")" "blocked"
+    assert_contains "$(read_cache)" "1!"
 
     # PostToolUse → working (unblock)
     fire_hook PostToolUse "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
-    [[ "$(read_cache)" == *"1*"* ]]
+    assert_eq "$(get_status "$sid")" "working"
+    assert_contains "$(read_cache)" "1*"
 
     # Stop → completed
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     # SessionEnd → deleted
     fire_hook SessionEnd "$json"
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 # ── 2. Block transitions ────────────────────────────────────────────
@@ -53,22 +53,22 @@ teardown() {
 
     fire_hook SessionStart "$json"
     fire_hook UserPromptSubmit "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # Block
     age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
-    [[ "$(get_status "$sid")" == "blocked" ]]
+    assert_eq "$(get_status "$sid")" "blocked"
     local blocked_cache
     blocked_cache=$(read_cache)
-    [[ "$blocked_cache" == *"1!"* ]]
+    assert_contains "$blocked_cache" "1!"
 
     # Unblock
     fire_hook PostToolUse "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
     local working_cache
     working_cache=$(read_cache)
-    [[ "$working_cache" == *"0!"* ]]
+    assert_contains "$working_cache" "0!"
 }
 
 # ── 3. No-op detection ──────────────────────────────────────────────
@@ -79,7 +79,7 @@ teardown() {
 
     fire_hook SessionStart "$json"
     fire_hook UserPromptSubmit "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # Record cache mtime
     sleep 1
@@ -92,7 +92,7 @@ teardown() {
     local after
     after=$(cache_mtime)
 
-    [[ "$before" == "$after" ]]
+    assert_eq "$before" "$after"
 }
 
 @test "integration: Notification on blocked session is no-op" {
@@ -103,7 +103,7 @@ teardown() {
     fire_hook UserPromptSubmit "$json"
     age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
-    [[ "$(get_status "$sid")" == "blocked" ]]
+    assert_eq "$(get_status "$sid")" "blocked"
 
     sleep 1
     local before
@@ -115,7 +115,7 @@ teardown() {
     local after
     after=$(cache_mtime)
 
-    [[ "$before" == "$after" ]]
+    assert_eq "$before" "$after"
 }
 
 # ── 4. Blocked timer ────────────────────────────────────────────────
@@ -139,7 +139,7 @@ teardown() {
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"3m"* ]]
+    assert_contains "$out" "3m"
 }
 
 @test "integration: blocked timer shows hours" {
@@ -162,7 +162,7 @@ teardown() {
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"2h"* ]]
+    assert_contains "$out" "2h"
 }
 
 # ── 5. Multiple sessions ────────────────────────────────────────────
@@ -178,16 +178,16 @@ teardown() {
     fire_hook Notification "{\"session_id\":\"multi-2\",\"cwd\":\"/tmp/test\"}"
     fire_hook Stop "{\"session_id\":\"multi-3\",\"cwd\":\"/tmp/test\"}"
 
-    [[ "$(count_status working)" -eq 1 ]]
-    [[ "$(count_status blocked)" -eq 1 ]]
-    [[ "$(count_status completed)" -eq 1 ]]
+    assert_num_eq "$(count_status working)" 1
+    assert_num_eq "$(count_status blocked)" 1
+    assert_num_eq "$(count_status completed)" 1
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"0."* ]]   # 0 idle
-    [[ "$out" == *"1*"* ]]   # 1 working
-    [[ "$out" == *"1+"* ]]   # 1 completed
-    [[ "$out" == *"1!"* ]]   # 1 blocked
+    assert_contains "$out" "0." # 0 idle
+    assert_contains "$out" "1*" # 1 working
+    assert_contains "$out" "1+" # 1 completed
+    assert_contains "$out" "1!" # 1 blocked
 }
 
 @test "integration: 6 sessions with mixed states" {
@@ -204,16 +204,16 @@ teardown() {
     fire_hook Stop "{\"session_id\":\"big-5\",\"cwd\":\"/tmp/test\"}"
     fire_hook Stop "{\"session_id\":\"big-6\",\"cwd\":\"/tmp/test\"}"
 
-    [[ "$(count_status working)" -eq 2 ]]
-    [[ "$(count_status blocked)" -eq 2 ]]
-    [[ "$(count_status completed)" -eq 2 ]]
+    assert_num_eq "$(count_status working)" 2
+    assert_num_eq "$(count_status blocked)" 2
+    assert_num_eq "$(count_status completed)" 2
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"0."* ]]
-    [[ "$out" == *"2*"* ]]
-    [[ "$out" == *"2+"* ]]
-    [[ "$out" == *"2!"* ]]
+    assert_contains "$out" "0."
+    assert_contains "$out" "2*"
+    assert_contains "$out" "2+"
+    assert_contains "$out" "2!"
 }
 
 # ── 6. Concurrent hooks ─────────────────────────────────────────────
@@ -230,7 +230,7 @@ teardown() {
     # Tolerate cache-write races from concurrent mv
     for pid in "${pids[@]}"; do wait "$pid" || true; done
 
-    [[ "$(count_sessions)" -eq 10 ]]
+    assert_num_eq "$(count_sessions)" 10
 }
 
 @test "integration: parallel mixed Notification/PostToolUse on different sessions" {
@@ -256,9 +256,9 @@ teardown() {
     done
     for pid in "${pids[@]}"; do wait "$pid" || true; done
 
-    [[ "$(count_status blocked)" -eq 5 ]]
-    [[ "$(count_status working)" -eq 5 ]]
-    [[ "$(count_sessions)" -eq 10 ]]
+    assert_num_eq "$(count_status blocked)" 5
+    assert_num_eq "$(count_status working)" 5
+    assert_num_eq "$(count_sessions)" 10
 }
 
 # ── 7. Rapid oscillation ────────────────────────────────────────────
@@ -273,14 +273,14 @@ teardown() {
     # working → blocked → working → blocked → working
     age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
-    [[ "$(get_status "$sid")" == "blocked" ]]
+    assert_eq "$(get_status "$sid")" "blocked"
     fire_hook PostToolUse "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
     age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
-    [[ "$(get_status "$sid")" == "blocked" ]]
+    assert_eq "$(get_status "$sid")" "blocked"
     fire_hook PostToolUse "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 }
 
 @test "integration: concurrent 10-flip leaves valid state" {
@@ -306,8 +306,8 @@ teardown() {
     # Final state must be valid (either working or blocked — no corruption)
     local final
     final=$(get_status "$sid")
-    [[ "$final" == "working" || "$final" == "blocked" ]]
-    [[ "$(count_sessions)" -eq 1 ]]
+    assert_one_of "$final" "working" "blocked"
+    assert_num_eq "$(count_sessions)" 1
 }
 
 # ── 8. Status-bar read ──────────────────────────────────────────────
@@ -320,15 +320,15 @@ teardown() {
     local bar_out cache_out
     bar_out=$(run_status_bar)
     cache_out=$(read_cache)
-    [[ "$bar_out" == "$cache_out" ]]
-    [[ -n "$bar_out" ]]
+    assert_eq "$bar_out" "$cache_out"
+    assert_not_empty "$bar_out"
 }
 
 @test "integration: status-bar empty when no cache" {
     rm -f "$CACHE"
     local out
     out=$(run_status_bar || true)
-    [[ -z "$out" ]]
+    assert_empty "$out"
 }
 
 # ── 9. Session cleanup ──────────────────────────────────────────────
@@ -339,12 +339,12 @@ teardown() {
     fire_hook SessionStart "{\"session_id\":\"remove-1\",\"cwd\":\"/tmp/test\"}"
     fire_hook UserPromptSubmit "{\"session_id\":\"remove-1\",\"cwd\":\"/tmp/test\"}"
 
-    [[ "$(count_sessions)" -eq 2 ]]
+    assert_num_eq "$(count_sessions)" 2
 
     fire_hook SessionEnd "{\"session_id\":\"remove-1\",\"cwd\":\"/tmp/test\"}"
-    [[ "$(count_sessions)" -eq 1 ]]
-    [[ "$(get_status keep-1)" == "working" ]]
-    [[ -z "$(get_status remove-1)" ]]
+    assert_num_eq "$(count_sessions)" 1
+    assert_eq "$(get_status keep-1)" "working"
+    assert_empty "$(get_status remove-1)"
 }
 
 @test "integration: last session removal zeros cache" {
@@ -352,13 +352,13 @@ teardown() {
     fire_hook UserPromptSubmit "{\"session_id\":\"last-1\",\"cwd\":\"/tmp/test\"}"
 
     fire_hook SessionEnd "{\"session_id\":\"last-1\",\"cwd\":\"/tmp/test\"}"
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"0."* ]]
-    [[ "$out" == *"0*"* ]]
-    [[ "$out" == *"0!"* ]]
+    assert_contains "$out" "0."
+    assert_contains "$out" "0*"
+    assert_contains "$out" "0!"
 }
 
 # ── 10. Completed status ─────────────────────────────────────────────
@@ -369,15 +369,15 @@ teardown() {
 
     fire_hook SessionStart "$json"
     fire_hook UserPromptSubmit "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"1+"* ]]
-    [[ "$out" == *"0*"* ]]
+    assert_contains "$out" "1+"
+    assert_contains "$out" "0*"
 }
 
 @test "integration: completed resumes on UserPromptSubmit" {
@@ -387,10 +387,10 @@ teardown() {
     fire_hook SessionStart "$json"
     fire_hook UserPromptSubmit "$json"
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     fire_hook UserPromptSubmit "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 }
 
 @test "integration: pane-focus clears completed to idle" {
@@ -400,7 +400,7 @@ teardown() {
     fire_hook_with_pane SessionStart "$json"
     fire_hook_with_pane UserPromptSubmit "$json"
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     # Get the pane assigned by fire_hook_with_pane
     local pane
@@ -413,12 +413,12 @@ teardown() {
         PATH="$TEST_TMPDIR/bin:$PATH" \
         bash "$TRACKER_SH" pane-focus "$pane"
 
-    [[ "$(get_status "$sid")" == "idle" ]]
+    assert_eq "$(get_status "$sid")" "idle"
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"1."* ]]
-    [[ "$out" == *"0+"* ]]
+    assert_contains "$out" "1."
+    assert_contains "$out" "0+"
 }
 
 @test "integration: full lifecycle with completed status" {
@@ -428,25 +428,25 @@ teardown() {
     fire_hook SessionStart "$json"
     fire_hook UserPromptSubmit "$json"
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     # Resume
     fire_hook UserPromptSubmit "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # Block and unblock
     age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
-    [[ "$(get_status "$sid")" == "blocked" ]]
+    assert_eq "$(get_status "$sid")" "blocked"
     fire_hook PostToolUse "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # Complete again
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     fire_hook SessionEnd "$json"
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 # ── 15. Subagent lifecycle ─────────────────────────────────────────
@@ -458,30 +458,30 @@ teardown() {
 
     fire_hook SessionStart "$json"
     fire_hook UserPromptSubmit "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # Spawn subagent
     fire_hook SubagentStart "$sub1"
     local count
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='$sid';")
-    [[ "$count" -eq 1 ]]
+    assert_num_eq "$count" 1
 
     # Stop fires while subagent active - should NOT complete
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # Subagent finishes
     fire_hook SubagentStop "$sub1"
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='$sid';")
-    [[ "$count" -eq 0 ]]
+    assert_num_eq "$count" 0
 
     # Real Stop - now completes
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"1+"* ]]
+    assert_contains "$out" "1+"
 }
 
 @test "integration: SubagentStop clears blocked parent to working" {
@@ -494,16 +494,16 @@ teardown() {
     fire_hook SubagentStart "$sub1"
     age_session "$sid" 60   # Notification only blocks a session >=45s old
     fire_hook Notification "$json"
-    [[ "$(get_status "$sid")" == "blocked" ]]
+    assert_eq "$(get_status "$sid")" "blocked"
 
     # SubagentStop clears blocked
     fire_hook SubagentStop "$sub1"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"1*"* ]]
-    [[ "$out" == *"0!"* ]]
+    assert_contains "$out" "1*"
+    assert_contains "$out" "0!"
 }
 
 @test "integration: multiple subagents count correctly through lifecycle" {
@@ -519,22 +519,22 @@ teardown() {
     done
     local count
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='$sid';")
-    [[ "$count" -eq 3 ]]
+    assert_num_eq "$count" 3
 
     # Stop deferred
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # Subagents finish one by one
     for i in 1 2 3; do
         fire_hook SubagentStop "{\"session_id\":\"$sid\",\"agent_id\":\"sub-$i\",\"agent_type\":\"worker\",\"cwd\":\"/tmp/test\"}"
     done
     count=$(sql "SELECT subagent_count FROM sessions WHERE session_id='$sid';")
-    [[ "$count" -eq 0 ]]
+    assert_num_eq "$count" 0
 
     # Real Stop
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 }
 
 @test "integration: PermissionRequest only blocks from working" {
@@ -542,20 +542,20 @@ teardown() {
     local json="{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
 
     fire_hook SessionStart "$json"
-    [[ "$(get_status "$sid")" == "idle" ]]
+    assert_eq "$(get_status "$sid")" "idle"
 
     # PermissionRequest on idle - should NOT block
     fire_hook PermissionRequest "$json"
-    [[ "$(get_status "$sid")" == "idle" ]]
+    assert_eq "$(get_status "$sid")" "idle"
 
     # Move to working, then complete
     fire_hook UserPromptSubmit "$json"
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     # PermissionRequest on completed - should NOT block
     fire_hook PermissionRequest "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 }
 
 @test "integration: Notification only blocks from working" {
@@ -563,20 +563,20 @@ teardown() {
     local json="{\"session_id\":\"$sid\",\"cwd\":\"/tmp/test\"}"
 
     fire_hook SessionStart "$json"
-    [[ "$(get_status "$sid")" == "idle" ]]
+    assert_eq "$(get_status "$sid")" "idle"
 
     # Notification on idle - should NOT block
     fire_hook Notification "$json"
-    [[ "$(get_status "$sid")" == "idle" ]]
+    assert_eq "$(get_status "$sid")" "idle"
 
     # Move to working, then complete
     fire_hook UserPromptSubmit "$json"
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     # Notification on completed - should NOT block
     fire_hook Notification "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 }
 
 @test "integration: task_count only counted for completed sessions in cache" {
@@ -599,8 +599,8 @@ teardown() {
     local out
     out=$(read_cache)
     # Only s2's task_count should show (1+), not s1's
-    [[ "$out" == *"1+"* ]]
-    [[ "$out" == *"1*"* ]]
+    assert_contains "$out" "1+"
+    assert_contains "$out" "1*"
 }
 
 # ── 16. Pi hooks lifecycle ───────────────────────────────────────────
@@ -611,32 +611,32 @@ teardown() {
 
     # SessionStart → idle (pi client detected from session_id path)
     fire_hook SessionStart "$json"
-    [[ "$(get_status "$sid")" == "idle" ]]
-    [[ "$(sql "SELECT agent_client FROM sessions WHERE session_id='$sid';")" == "pi" ]]
+    assert_eq "$(get_status "$sid")" "idle"
+    assert_eq "$(sql "SELECT agent_client FROM sessions WHERE session_id='$sid';")" "pi"
 
     # UserPromptSubmit → working
     fire_hook UserPromptSubmit "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # PostToolUse → working (no-op)
     fire_hook PostToolUse "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # PostToolUseFailure → working (no-op)
     fire_hook PostToolUseFailure "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     # Stop → completed
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     local out
     out=$(read_cache)
-    [[ "$out" == *"1+"* ]]
+    assert_contains "$out" "1+"
 
     # SessionEnd → deleted
     fire_hook SessionEnd "$json"
-    [[ "$(count_sessions)" -eq 0 ]]
+    assert_num_eq "$(count_sessions)" 0
 }
 
 @test "pi: session_id as file path does not break cache rendering" {
@@ -649,8 +649,8 @@ teardown() {
 
     local out
     out=$(read_cache)
-    [[ -n "$out" ]]
-    [[ "$out" == *"1+"* ]]
+    assert_not_empty "$out"
+    assert_contains "$out" "1+"
 
     fire_hook SessionEnd "$json"
 }
@@ -664,17 +664,17 @@ teardown() {
     # Pi session
     fire_hook SessionStart "$pi_json"
     fire_hook UserPromptSubmit "$pi_json"
-    [[ "$(sql "SELECT agent_client FROM sessions WHERE session_id='$pi_sid';")" == "pi" ]]
+    assert_eq "$(sql "SELECT agent_client FROM sessions WHERE session_id='$pi_sid';")" "pi"
 
     # Claude session
     fire_hook SessionStart "$cc_json"
     fire_hook UserPromptSubmit "$cc_json"
-    [[ "$(sql "SELECT agent_client FROM sessions WHERE session_id='$cc_sid';")" == "claude" ]]
+    assert_eq "$(sql "SELECT agent_client FROM sessions WHERE session_id='$cc_sid';")" "claude"
 
     # Both working: count = 2
     local out
     out=$(read_cache)
-    [[ "$out" == *"2*"* ]]
+    assert_contains "$out" "2*"
 
     # Cleanup
     fire_hook SessionEnd "$pi_json"
@@ -688,11 +688,11 @@ teardown() {
     fire_hook SessionStart "$json"
     fire_hook UserPromptSubmit "$json"
     fire_hook Stop "$json"
-    [[ "$(get_status "$sid")" == "completed" ]]
+    assert_eq "$(get_status "$sid")" "completed"
 
     # Resume
     fire_hook UserPromptSubmit "$json"
-    [[ "$(get_status "$sid")" == "working" ]]
+    assert_eq "$(get_status "$sid")" "working"
 
     fire_hook SessionEnd "$json"
 }

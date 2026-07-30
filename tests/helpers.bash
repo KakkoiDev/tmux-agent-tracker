@@ -4,6 +4,9 @@
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SCRIPTS_DIR="$PROJECT_ROOT/scripts"
 
+# shellcheck source=./assert.bash
+source "$PROJECT_ROOT/tests/assert.bash"
+
 # Per-test temp directory
 setup_test_env() {
     # A private sandbox path per run. The production default is a hardcoded
