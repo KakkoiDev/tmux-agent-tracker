@@ -2760,15 +2760,82 @@ SCRIPT
     assert_eq "$output" "antigravity"
 }
 
+# The stub emits three columns because _has_agent_child asks for
+# `ps -eo pid,ppid,comm`. A two-column stub is not a smaller version of the real
+# call, it is a different one: awk would read comm as ppid, match nothing, and the
+# test would pass or fail for reasons unrelated to the code.
 @test "_has_agent_child detects agy process child" {
     source "$SCRIPTS_DIR/helpers.sh"
     ps() {
-        echo "PPID COMM"
-        echo "12345 agy"
+        echo "  PID  PPID COMM"
+        echo "  9999 12345 agy"
     }
     uname() { echo "Darwin"; }
     run _has_agent_child "12345"
     assert_num_eq "$status" 0
+}
+
+# Regression: tmux-agent-mesh's `dispatch` runs the harness as the pane's own
+# process, so there is no agent *child* and a ppid-only test finds nothing.
+# _reap_dead then deleted the row with reason=no_agent, so every dispatched agent
+# went invisible to the tracker within ten seconds of starting, and the resumer
+# marked it "gaveup: no live agent in pane".
+@test "_has_agent_child detects an agent that is the pane process itself" {
+    source "$SCRIPTS_DIR/helpers.sh"
+    ps() {
+        echo "  PID  PPID COMM"
+        echo " 12345  1000 claude"
+    }
+    run _has_agent_child "12345"
+    assert_num_eq "$status" 0
+}
+
+# Regression: `ps -o comm` prints the executable as invoked, so an agent started
+# by absolute path reports a full path and never equalled the bare name. Measured
+# on this machine: a bare PATH invocation reports "claude", an absolute one
+# reports "/tmp/.../claude".
+@test "_has_agent_child detects an agent invoked by absolute path" {
+    source "$SCRIPTS_DIR/helpers.sh"
+    ps() {
+        echo "  PID  PPID COMM"
+        echo "  9999 12345 /opt/homebrew/bin/claude"
+    }
+    run _has_agent_child "12345"
+    assert_num_eq "$status" 0
+}
+
+# A comm containing spaces must not be split into fields, and must not be mistaken
+# for an agent. This machine is running
+# "/Applications/Claude.app/.../Claude Helper (Renderer)" right now.
+@test "_has_agent_child ignores an unrelated process whose path contains spaces" {
+    source "$SCRIPTS_DIR/helpers.sh"
+    ps() {
+        echo "  PID  PPID COMM"
+        echo "  9999 12345 /Applications/Claude.app/Contents/MacOS/Claude Helper (Renderer)"
+    }
+    run _has_agent_child "12345"
+    assert_num_eq "$status" 1
+}
+
+@test "_has_agent_child is false when neither the pid nor a child is an agent" {
+    source "$SCRIPTS_DIR/helpers.sh"
+    ps() {
+        echo "  PID  PPID COMM"
+        echo " 12345  1000 zsh"
+        echo "  9999 12345 vim"
+    }
+    run _has_agent_child "12345"
+    assert_num_eq "$status" 1
+}
+
+@test "_has_agent_child is false for an empty pid" {
+    source "$SCRIPTS_DIR/helpers.sh"
+    ps() {
+        echo "  PID  PPID COMM"
+        echo " 12345  1000 claude"
+    }
+    run _has_agent_child ""
+    assert_num_eq "$status" 1
 }
 
 

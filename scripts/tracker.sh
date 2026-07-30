@@ -345,6 +345,17 @@ cmd_hook() {
 
     # Reap stale sessions on events that create/wake sessions
     # Skip in sandbox - no tmux pane list to cross-reference
+    #
+    # Note the ordering, which reads as a bug the first time: _ensure_session has
+    # already inserted this session's row a few lines above, and _reap_dead can
+    # delete it again within the same invocation. That is intended for a pane with
+    # no agent running in it, and it is why firing `SessionStart` by hand from a
+    # plain shell appears to create no row at all.
+    #
+    # It is not why real agents went missing. That was _has_agent_child matching
+    # only child processes, so a pane whose own process is the harness - which is
+    # what tmux-agent-mesh's `dispatch` creates - looked agentless and was reaped
+    # ten seconds after starting.
     case "$event" in
         SessionStart|UserPromptSubmit)
             [[ "$_SANDBOX" -eq 0 ]] && _reap_dead 2>/dev/null || true ;;
