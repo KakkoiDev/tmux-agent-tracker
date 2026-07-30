@@ -1,5 +1,10 @@
 # tmux-agent-tracker
 
+> `lib/` is vendored from [tmux-toolkit](https://github.com/KakkoiDev/tmux-toolkit)
+> via `git subtree`; do not edit it in place, CI fails on drift. If you are an agent
+> picking up in-flight work on this plugin, start at
+> [tmux-toolkit `docs/RESUME.md`](https://github.com/KakkoiDev/tmux-toolkit/blob/main/docs/RESUME.md).
+
 Track [Claude Code](https://docs.anthropic.com/en/docs/claude-code), [Gemini CLI](https://github.com/google-gemini/gemini-cli), [Antigravity (`agy`)](https://antigravity.google), [Pi coding agent](https://github.com/earendil-works/pi), and Codex agent sessions in your tmux status bar. Hook-driven, no daemon, no polling.
 
 ## Status Bar
